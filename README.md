@@ -80,3 +80,49 @@ docker compose up --build --wait --wait-timeout 180
 ```
 
 Consulter le [guide Docker/Hyper-V](docs/deployment/docker-hyperv.md) pour les prérequis, l’accès depuis Windows, les ports et les vérifications. Aucun déploiement distant automatique ; ce Compose conserve une identité simulée de développement.
+
+### Tests rapides sur la VM Ubuntu
+
+Depuis le dossier du projet sur la VM, vérifier les conteneurs et l’API :
+
+```sh
+docker compose ps
+curl -i http://127.0.0.1:8080/public/ping
+curl -i http://127.0.0.1:8080/api/message
+python3 dev/compose_smoke.py
+```
+
+Résultats attendus : conteneurs `healthy`, ping `200` avec `{"message":"pong"}`, route protégée sans jeton `401`, puis :
+
+```text
+Compose smoke check passed: public ping, Bearer rejection, public JWKS and signed-token access
+```
+
+Le script vérifie aussi l’accès protégé avec un vrai JWT signé sans afficher le jeton. Il nécessite Python 3 sur la VM ; les ports ci-dessus correspondent aux valeurs par défaut de Compose.
+
+### Tunnel SSH depuis Windows
+
+Dans **PowerShell sur Windows**, ouvrir le tunnel vers la VM :
+
+```powershell
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 -L 127.0.0.1:9000:127.0.0.1:9000 jerome@192.168.1.127
+```
+
+`jerome@192.168.1.127` correspond à la VM utilisée lors des essais ; adapter le compte et l’adresse si nécessaire. Le nom Hyper-V `ubuntu2604` n’est pas forcément résolu par le DNS Windows. Pour retrouver l’IP dans Ubuntu, utiliser `hostname -I` et identifier l’adresse de la carte réseau de la VM, pas celle d’un réseau Docker.
+
+Saisir le mot de passe SSH lorsqu’il est demandé : aucun caractère ne s’affiche pendant la saisie. Lors d’une première connexion, vérifier l’empreinte de la clé hôte avant de l’accepter. **Garder la fenêtre ouverte** ; l’absence de terminal après authentification est normale avec `-N`. Fermer la fenêtre ou faire `Ctrl+C` coupe le tunnel.
+
+Dans une **seconde fenêtre PowerShell**, tester l’accès sans passer par un proxy :
+
+```powershell
+curl.exe --noproxy "*" -i http://127.0.0.1:8080/public/ping
+curl.exe --noproxy "*" -i http://127.0.0.1:8080/api/message
+```
+
+Attendus : `200` pour le ping et `401` pour la route protégée sans jeton. Dans le navigateur, ouvrir explicitement :
+
+```text
+http://127.0.0.1:8080/public/ping
+```
+
+En cas d’échec, vérifier d’abord le ping depuis Ubuntu, puis relancer la commande SSH avec `-v` pour diagnostiquer le tunnel. Ne pas ajouter de trace HTTP contenant un jeton.
