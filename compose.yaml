@@ -1,0 +1,52 @@
+name: spring-entra-demo
+
+services:
+  identity:
+    build:
+      context: .
+      dockerfile: dev/Dockerfile
+    environment:
+      DEV_IDENTITY_BIND_ADDRESS: 0.0.0.0
+      DEV_IDENTITY_ISSUER: http://identity:9000
+    ports:
+      - "127.0.0.1:${IDENTITY_PORT:-9000}:9000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/jwks', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 6
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      JWT_ISSUER_URI: http://identity:9000
+      JWT_JWK_SET_URI: http://identity:9000/jwks
+      JWT_AUDIENCE: spring-entra-demo
+    ports:
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8080}:8080"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--max-time", "3", "--output", "/dev/null", "http://127.0.0.1:8080/public/ping"]
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 6
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped

@@ -6,10 +6,11 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 
-from identity_provider import DevelopmentIdentity, make_server, openssl
+from identity_provider import DevelopmentIdentity, configuration, make_server, openssl
 
 
 def decode(value):
@@ -17,6 +18,41 @@ def decode(value):
 
 
 class IdentityProviderTest(unittest.TestCase):
+    def test_standalone_defaults_remain_loopback_and_local_issuer(self):
+        self.assertEqual(configuration({}), ("127.0.0.1", "http://localhost:9000"))
+
+    def test_explicit_container_binding_and_issuer(self):
+        self.assertEqual(configuration({"DEV_IDENTITY_BIND_ADDRESS": "0.0.0.0",
+                                        "DEV_IDENTITY_ISSUER": "http://identity:9000"}),
+                         ("0.0.0.0", "http://identity:9000"))
+
+    def test_invalid_bind_addresses_are_rejected(self):
+        for host in ("", "localhost", "::1", "invalid", "0.0.0.0:9000"):
+            with self.subTest(host=host), self.assertRaises(ValueError):
+                configuration({"DEV_IDENTITY_BIND_ADDRESS": host})
+
+    def test_invalid_issuers_are_rejected(self):
+        for issuer in ("", "/relative", "ftp://identity", "http://user:password@identity", "http://@identity",
+                       "http://identity?aud=other", "http://identity#fragment", "http://identity?",
+                       "http://identity#", "http://identity:invalid", "http://identity:99999",
+                       "http://identity with spaces", "http:///missing-host"):
+            with self.subTest(issuer=issuer), self.assertRaises(ValueError):
+                configuration({"DEV_IDENTITY_ISSUER": issuer})
+
+    def test_server_defaults_to_loopback_but_accepts_explicit_container_binding(self):
+        with patch("identity_provider.HTTPServer") as server:
+            make_server(None, 0)
+            self.assertEqual(server.call_args.args[0], ("127.0.0.1", 0))
+            make_server(None, 0, host="0.0.0.0")
+            self.assertEqual(server.call_args.args[0], ("0.0.0.0", 0))
+
+    def test_configured_issuer_is_used_in_signed_token(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, issuer = configuration({"DEV_IDENTITY_ISSUER": "http://identity:9000"})
+            identity = DevelopmentIdentity(directory, issuer)
+            claims = identity.token_response()["access_token"].split(".")[1]
+            self.assertEqual(json.loads(decode(claims))["iss"], "http://identity:9000")
+
     def test_loopback_http_endpoints(self):
         with tempfile.TemporaryDirectory() as directory:
             identity = DevelopmentIdentity(directory)

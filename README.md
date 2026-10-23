@@ -69,3 +69,14 @@ Configurer l’issuer du tenant et de la version de jeton retenus, son JWKS et l
 Références : [Resource Server JWT Security 7.0](https://docs.spring.io/spring-security/reference/7.0/servlet/oauth2/resource-server/jwt.html), [Boot 4.0](https://docs.spring.io/spring-boot/4.0/system-requirements.html), [jetons d’accès Entra](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens).
 
 Lire [AGENTS.md](AGENTS.md) et les fiches avant contribution. Ne pas fusionner ni déployer automatiquement.
+
+## Docker Compose et VM Hyper-V
+
+Deux services sont fournis : l’API et le simulateur local JWKS. Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
+
+```sh
+cp .env.example .env
+docker compose up --build --wait --wait-timeout 180
+```
+
+Consulter le [guide Docker/Hyper-V](docs/deployment/docker-hyperv.md) pour les prérequis, l’accès depuis Windows, les ports et les vérifications. Aucun déploiement distant automatique ; ce Compose conserve une identité simulée de développement.

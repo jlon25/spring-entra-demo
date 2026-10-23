@@ -9,3 +9,6 @@
 # Python development simulator
 __pycache__/
 *.pyc
+
+# Local Docker Compose settings
+.env

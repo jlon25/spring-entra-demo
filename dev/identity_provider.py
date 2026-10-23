@@ -2,10 +2,12 @@
 """Development-only RS256 issuer. Requires Python 3.10+ and OpenSSL 3.x.
 
 Run: python3 dev/identity_provider.py
-The issuer is intentionally bound to loopback and must never be deployed.
+The default binding is loopback. Container binding requires explicit configuration.
+This issuer is only for development and must never serve production authentication.
 """
 
 import base64
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -14,6 +16,31 @@ import subprocess
 import tempfile
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlsplit
+
+
+def configuration(environ=None):
+    """Read explicit container overrides while keeping standalone loopback defaults."""
+    values = os.environ if environ is None else environ
+    host = values.get("DEV_IDENTITY_BIND_ADDRESS", "127.0.0.1")
+    issuer = values.get("DEV_IDENTITY_ISSUER", "http://localhost:9000")
+    try:
+        ipaddress.IPv4Address(host)
+        parsed = urlsplit(issuer)
+        # Accessing port also rejects malformed or out-of-range port values.
+        parsed.port
+        valid_issuer = (
+            parsed.scheme in ("http", "https") and parsed.hostname
+            and parsed.username is None and parsed.password is None
+            and not parsed.query and not parsed.fragment
+            and not any(character.isspace() for character in issuer)
+            and "?" not in issuer and "#" not in issuer
+        )
+    except (ValueError, TypeError):
+        raise ValueError("Invalid development identity bind address or issuer") from None
+    if not valid_issuer:
+        raise ValueError("Development issuer must be an absolute HTTP(S) URL without credentials, query or fragment")
+    return host, issuer
 
 
 def base64url(value):
@@ -63,7 +90,7 @@ class DevelopmentIdentity:
         }
 
 
-def make_server(identity, port=9000):
+def make_server(identity, port=9000, host="127.0.0.1"):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path == "/jwks":
@@ -87,7 +114,7 @@ def make_server(identity, port=9000):
             # Never log requests, query strings, headers or tokens.
             pass
 
-    return HTTPServer(("127.0.0.1", port), Handler)
+    return HTTPServer((host, port), Handler)
 
 
 def main():
@@ -96,16 +123,17 @@ def main():
 
     signal.signal(signal.SIGTERM, stop)
     try:
+        host, issuer = configuration()
         with tempfile.TemporaryDirectory(prefix="development-jwks-") as directory:
-            identity = DevelopmentIdentity(directory)
-            with make_server(identity) as server:
-                print("Development identity provider: http://localhost:9000 (loopback only)",
+            identity = DevelopmentIdentity(directory, issuer)
+            with make_server(identity, host=host) as server:
+                print(f"Development-only identity provider listening on {host}:9000; do not expose publicly.",
                       flush=True)
                 server.serve_forever()
     except KeyboardInterrupt:
         pass
-    except (OSError, subprocess.CalledProcessError):
-        raise SystemExit("Cannot start local issuer; check OpenSSL and loopback port 9000.")
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        raise SystemExit("Cannot start development issuer; check configuration, OpenSSL and port 9000.")
 
 
 if __name__ == "__main__":
