@@ -32,3 +32,29 @@ jobs:
         run: ./mvnw --batch-mode --no-transfer-progress verify
       - name: Verify local identity simulator
         run: python3 -m unittest discover -s dev -p "test_*.py" -v
+
+  compose-smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: ci-jwt
+      API_PORT: '18080'
+      IDENTITY_PORT: '19000'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build and wait for healthy containers
+        run: docker compose up --build --wait --wait-timeout 180
+      - name: Verify API and identity provider over HTTP
+        env:
+          API_BASE_URL: http://127.0.0.1:18080
+          IDENTITY_BASE_URL: http://127.0.0.1:19000
+        run: python3 dev/compose_smoke.py
+      - name: Clean up containers and volumes
+        if: always()
+        run: docker compose down --volumes --remove-orphans
