@@ -28,8 +28,11 @@ Inspection du 13 octobre 2026 : la branche distante par défaut est `master`, av
 | Identité | [identity-specialist](docs/agents/identity-specialist.md) | sécurité JWT, simulation, préparation Entra |
 | Tests | [test-engineer](docs/agents/test-engineer.md) | tests et fixtures autorisés |
 | GitHub/CI | [github-ci](docs/agents/github-ci.md) | build et workflows autorisés |
+| Infrastructure | [infrastructure](docs/agents/infrastructure.md) | conteneurs, Compose, exploitation Ubuntu et réseau Hyper-V |
 
 Une fiche ne crée pas un agent et n’est pas un périmètre d’écriture implicite.
+
+L’infrastructure prépare les images, la configuration d’exécution et les procédures VM ; GitHub/CI conserve les workflows et le build reproductible, et Identité conserve les règles JWT et la confiance envers le fournisseur. Pour une tâche commune, préciser les fichiers de chaque rôle et séquencer les changements partagés. Le rôle infrastructure n’est pas requis pour un changement Java sans effet sur l’exécution.
 
 ## Orchestration par l’agent principal
 
@@ -61,7 +64,7 @@ Ne pas fusionner ni déployer. Rapporter les preuves et limites.
 """
 ```
 
-Décliner le même format pour les quatre autres fiches seulement après vérification du chargement par le runtime cible. Aucune configuration native n’est ajoutée ou annoncée reconnue ici : la compatibilité de ce format avec le CLI installé et son chargement effectif n’ont pas été vérifiés. Les cinq fichiers restent des fiches utilisées par délégation explicite, qui fonctionne dans cette session. Une validation syntaxique TOML seule ne prouverait ni reconnaissance ni exécution d’un agent.
+Décliner le même format pour les autres fiches seulement après vérification du chargement par le runtime cible. Aucune configuration native n’est ajoutée ou annoncée reconnue ici : la compatibilité de ce format avec le CLI installé et son chargement effectif n’ont pas été vérifiés. Les six fiches restent des fiches utilisées par délégation explicite, qui fonctionne dans cette session. Une validation syntaxique TOML seule ne prouverait ni reconnaissance ni exécution d’un agent.
 
 Si la délégation est absente, appliquer les fiches successivement et annoncer l’exécution par un seul agent ; indiquer que la revue indépendante reste impossible, sans l’inventer.
 
