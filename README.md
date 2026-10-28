@@ -1,6 +1,6 @@
 # spring-entra-demo
 
-API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend, base de données ou login interactif. Microsoft Entra sera intégré ultérieurement.
+API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend ni base de données ; la connexion locale simulée se fait via HTTP. Microsoft Entra sera intégré ultérieurement.
 
 ## Prérequis et vérifications
 
@@ -17,6 +17,9 @@ Sous Windows utiliser `mvnw.cmd`. Le premier build nécessite Maven Central. La 
 Le simulateur nécessite Python 3 et OpenSSL dans le PATH. Premier terminal :
 
 ```sh
+export DEV_IDENTITY_USERNAME=local-user
+read -r -s -p "Mot de passe local (12 caractères minimum) : " DEV_IDENTITY_PASSWORD; printf '\n'
+export DEV_IDENTITY_PASSWORD
 python3 dev/identity_provider.py
 ```
 
@@ -26,19 +29,20 @@ Second terminal :
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique ; `GET /token` délivre un jeton de développement de cinq minutes avec `api.read`. Les clés privées restent temporaires. Aucun jeton n’est journalisé par le serveur. Ce service sans authentification est exclusivement local : ne pas l’exposer ni le déployer.
+Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique. **`POST /token`** vérifie les identifiants avant d’émettre un JWT de cinq minutes avec `api.read` ; `GET /token` ne délivre plus de jeton (`405`). Les clés privées restent temporaires et aucun jeton ni mot de passe n’est journalisé.
 
-Exemple avec curl et jq, sans traces shell ou HTTP contenant Authorization :
+Il s’agit d’un compte de développement unique configuré par `DEV_IDENTITY_USERNAME` (défaut `local-user`) et `DEV_IDENTITY_PASSWORD` (obligatoire, 12 caractères minimum, sans valeur par défaut). Ce compte ne correspond ni à un utilisateur Ubuntu ni à un compte Microsoft. Aucun mot de passe n’est stocké en base ; il reste dans la configuration locale et la mémoire du simulateur. Ne pas réutiliser un vrai mot de passe personnel. Ce mécanisme n’est pas un serveur OAuth ni une authentification de production ; pas de création de compte, MFA, renouvellement ou révocation.
+
+Depuis un autre terminal, le test interactif demande le mot de passe sans l’afficher, puis vérifie connexion et accès protégé sans afficher le JWT :
 
 ```sh
-curl -i http://localhost:8080/public/ping
-curl -i http://localhost:8080/api/message
-TOKEN=$(curl --fail --silent http://localhost:9000/token | jq -r .access_token)
-curl --silent -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/message
-unset TOKEN
+python3 dev/compose_smoke.py
 ```
 
-Les deux premières requêtes retournent respectivement `200` et `401`. La requête authentifiée retourne `200` et `{"message":"authenticated"}`. Ne pas partager, versionner ou journaliser le jeton.
+Le script utilise les ports par défaut et `local-user`. Pour un autre compte, exporter `DEV_IDENTITY_USERNAME`. En CI seulement, le mot de passe est fourni par variable d’environnement éphémère ; en terminal il est demandé si cette variable n’est pas définie.
+
+Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in: 300` et `scope: api.read`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
+
 
 ## Contrat de sécurité
 
@@ -75,9 +79,13 @@ Lire [AGENTS.md](AGENTS.md) et les fiches avant contribution. Ne pas fusionner n
 Deux services sont fournis : l’API et le simulateur local JWKS. Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
 
 ```sh
-cp .env.example .env
+cp .env.example .env  # première installation seulement
+chmod 600 .env
+nano .env  # renseigner DEV_IDENTITY_PASSWORD avant le démarrage
 docker compose up --build --wait --wait-timeout 180
 ```
+
+Si `.env` existe déjà, le conserver et y ajouter `DEV_IDENTITY_PASSWORD` (12 caractères minimum), ainsi que `DEV_IDENTITY_USERNAME` si le compte doit différer de `local-user`. Entourer la valeur du mot de passe de quotes simples dans `.env` pour éviter l’interpolation de `$`. Ne pas afficher ou versionner ce fichier. Compose échoue si le mot de passe n’est pas renseigné.
 
 Consulter le [guide Docker/Hyper-V](docs/deployment/docker-hyperv.md) pour les prérequis, l’accès depuis Windows, les ports et les vérifications. Aucun déploiement distant automatique ; ce Compose conserve une identité simulée de développement.
 
@@ -95,10 +103,10 @@ python3 dev/compose_smoke.py
 Résultats attendus : conteneurs `healthy`, ping `200` avec `{"message":"pong"}`, route protégée sans jeton `401`, puis :
 
 ```text
-Compose smoke check passed: public ping, Bearer rejection, public JWKS and signed-token access
+Compose smoke check passed: public ping, Bearer rejection, public JWKS, local login and signed-token access
 ```
 
-Le script vérifie aussi l’accès protégé avec un vrai JWT signé sans afficher le jeton. Il nécessite Python 3 sur la VM ; les ports ci-dessus correspondent aux valeurs par défaut de Compose.
+Le script demande le mot de passe local sans l’afficher et vérifie aussi l’accès protégé avec un vrai JWT signé sans afficher le jeton. Il nécessite Python 3 sur la VM ; les ports ci-dessus correspondent aux valeurs par défaut de Compose.
 
 ### Tunnel SSH depuis Windows
 
@@ -126,3 +134,20 @@ http://127.0.0.1:8080/public/ping
 ```
 
 En cas d’échec, vérifier d’abord le ping depuis Ubuntu, puis relancer la commande SSH avec `-v` pour diagnostiquer le tunnel. Ne pas ajouter de trace HTTP contenant un jeton.
+
+### Connexion simulée depuis PowerShell
+
+Après ouverture du tunnel SSH, dans une seconde fenêtre PowerShell :
+
+```powershell
+$credential = Get-Credential -UserName 'local-user' -Message 'Compte du simulateur local'
+try {
+    $body = @{ username = $credential.UserName; password = $credential.GetNetworkCredential().Password } | ConvertTo-Json
+    $login = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:9000/token' -ContentType 'application/json' -Body $body
+    Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/message' -Headers @{ Authorization = "Bearer $($login.access_token)" }
+} finally {
+    Remove-Variable credential, body, login -ErrorAction SilentlyContinue
+}
+```
+
+Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La réponse attendue contient `message: authenticated`. Ne pas afficher `$body` ou `$login`, ni activer de traces HTTP/transcription : ils contiennent des données sensibles. Le navigateur seul ne fournit pas de Bearer à `/api/message` ; une connexion par formulaire nécessiterait une interface cliente, hors périmètre actuel. Garder les échanges dans le tunnel SSH ou utiliser HTTPS au-delà du laboratoire.

@@ -37,7 +37,9 @@ Depuis la VM Linux, après fusion de la PR Docker :
 ```sh
 git clone https://github.com/jlon25/spring-entra-demo.git
 cd spring-entra-demo
-cp .env.example .env
+cp .env.example .env  # uniquement si le fichier n’existe pas
+chmod 600 .env
+nano .env  # renseigner DEV_IDENTITY_PASSWORD, minimum 12 caractères
 docker compose config --quiet
 docker compose up --build --wait --wait-timeout 180
 docker compose ps
@@ -45,7 +47,7 @@ docker compose ps
 
 Pour un dépôt déjà cloné, mettre à jour votre branche en préservant vos modifications locales. Avant fusion, vous pouvez tester explicitement la branche de la PR au lieu de master.
 
-Le fichier `.env` est local et ignoré par Git. Il permet de modifier les ports hôte et l’adresse d’écoute de l’API. Ne pas y placer de jetons ou clés privées. Par défaut, seuls les ports `127.0.0.1:8080` et `127.0.0.1:9000` de la VM sont publiés. Les healthchecks déterminent quand les services sont prêts ; un conteneur simplement démarré n’est pas une preuve de disponibilité. L’API attend que le JWKS soit sain.
+Le fichier `.env` est local et ignoré par Git. Le conserver lors des mises à jour : ajouter `DEV_IDENTITY_PASSWORD` sans valeur par défaut (12 caractères minimum, compte simulé uniquement) et éventuellement `DEV_IDENTITY_USERNAME` (défaut `local-user`). Entourer le mot de passe de quotes simples pour éviter l’interpolation Compose. Ne pas réutiliser le mot de passe SSH ou Microsoft. Le démarrage échoue sans ce paramètre ; ne pas afficher `docker compose config` sans `--quiet`, car le rendu contient le mot de passe. Il permet de modifier les ports hôte et l’adresse d’écoute de l’API. Ne pas y placer de jetons ou clés privées. Par défaut, seuls les ports `127.0.0.1:8080` et `127.0.0.1:9000` de la VM sont publiés. Les healthchecks déterminent quand les services sont prêts ; un conteneur simplement démarré n’est pas une preuve de disponibilité. L’API attend que le JWKS soit sain.
 
 Vérifier depuis la VM :
 
@@ -59,6 +61,8 @@ Attendus : `200` et JSON `{"message":"pong"}`, puis `401` sans jeton. Si Python3
 ```sh
 python3 dev/compose_smoke.py
 ```
+
+Le test demande le mot de passe du simulateur si `DEV_IDENTITY_PASSWORD` n’est pas exporté dans le terminal ; la saisie ne s’affiche pas. Il vérifie les mauvais identifiants puis une connexion valide via `POST /token`. Le compte est configurable avec `DEV_IDENTITY_USERNAME`. `GET /token` retourne désormais `405`.
 
 Pour des ports personnalisés, le script accepte `API_BASE_URL` et `IDENTITY_BASE_URL` (les variables de `.env` ne sont pas exportées automatiquement dans votre shell).
 
@@ -101,7 +105,7 @@ docker compose down
 
 Ne pas activer les logs de requêtes contenant Authorization. Les clés de simulation sont éphémères : après redémarrage/recréation d’identity, obtenir un nouveau jeton. Redémarrer aussi l’API si son cache JWKS conserve l’ancienne clé ; pour un redémarrage cohérent : `docker compose restart identity api`. Aucun stockage applicatif n’est à sauvegarder à ce stade.
 
-Pour mettre à jour après une nouvelle version, préserver `.env`, récupérer les changements du dépôt puis relancer `docker compose up --build --wait --wait-timeout 180`. Les images de base utilisent des tags maintenus, pas des digests immuables : conserver l’identifiant de commit et les identifiants d’images pour identifier ce qui a été testé. Aucun push de registre ou déploiement distant n’est effectué par CI.
+Pour mettre à jour après une nouvelle version, préserver `.env` et y ajouter les nouvelles variables requises (pour la connexion locale : `DEV_IDENTITY_PASSWORD`), récupérer les changements du dépôt puis relancer `docker compose up --build --wait --wait-timeout 180`. Les images de base utilisent des tags maintenus, pas des digests immuables : conserver l’identifiant de commit et les identifiants d’images pour identifier ce qui a été testé. Aucun push de registre ou déploiement distant n’est effectué par CI.
 
 ## Sources officielles
 

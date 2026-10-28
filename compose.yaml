@@ -8,6 +8,8 @@ services:
     environment:
       DEV_IDENTITY_BIND_ADDRESS: 0.0.0.0
       DEV_IDENTITY_ISSUER: http://identity:9000
+      DEV_IDENTITY_USERNAME: ${DEV_IDENTITY_USERNAME:-local-user}
+      DEV_IDENTITY_PASSWORD: ${DEV_IDENTITY_PASSWORD:?Set DEV_IDENTITY_PASSWORD in .env}
     ports:
       - "127.0.0.1:${IDENTITY_PORT:-9000}:9000"
     healthcheck:
