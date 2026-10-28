@@ -2,9 +2,9 @@
 
 ## Contexte et état vérifié
 
-Le backend prévu est une API Spring Boot consommée par un frontend séparé. L’API utilise des jetons d’accès Bearer JWT et Spring Security OAuth2 Resource Server. Un fournisseur d’identité simulé sert au développement et aux tests ; Microsoft Entra sera intégré ensuite. Aucun besoin de persistance n’est établi : ne pas ajouter de base, ORM ou couche repository sans besoin concret.
+Le dépôt fournit le socle d’une API Spring Boot avec Bearer JWT, Spring Security OAuth2 Resource Server et connexion locale simulée ; Microsoft Entra reste une intégration future. Le frontend séparé sera développé avec Angular. Le cadrage de la planification des auditions figure dans [le modèle métier](docs/domain/audition-planning.md) : distinguer ses règles validées, recommandations et décisions encore ouvertes. La conservation durable des dossiers, auditions et disponibilités est un besoin identifié pour l’application cible ; le choix et l’ajout de persistance nécessitent une tâche d’implémentation dédiée, sans base, ORM ou couche repository spéculative.
 
-Inspection du 13 octobre 2026 : la branche distante par défaut est `master`, avec `README.md` et `docs/github-access-test.md`. Aucun code, AGENTS.md antérieur, fichier Maven/Gradle, wrapper ou version Java/Spring déclarée. Java 21.0.12.1 est installé dans l’environnement, sans constituer un choix de version pour le projet. Maven et Gradle ne sont pas présents dans le PATH. Le checkout local initial est sur `work`, sans commit ni modification ; sa référence distante est ancienne. Le connecteur GitHub permet de lire l’état distant actuel ; `git fetch origin` a échoué à joindre le proxy. Refaire cette inspection à chaque nouvelle tâche : ce constat n’est pas une convention définitive.
+Constat historique de l’inspection du 13 octobre 2026 (ne décrit pas l’état actuel du dépôt) : la branche distante par défaut est `master`, avec `README.md` et `docs/github-access-test.md`. Aucun code, AGENTS.md antérieur, fichier Maven/Gradle, wrapper ou version Java/Spring déclarée. Java 21.0.12.1 est installé dans l’environnement, sans constituer un choix de version pour le projet. Maven et Gradle ne sont pas présents dans le PATH. Le checkout local initial est sur `work`, sans commit ni modification ; sa référence distante est ancienne. Le connecteur GitHub permet de lire l’état distant actuel ; `git fetch origin` a échoué à joindre le proxy. Refaire cette inspection à chaque nouvelle tâche : ce constat n’est pas une convention définitive.
 
 ## Règles communes
 
@@ -25,12 +25,15 @@ Inspection du 13 octobre 2026 : la branche distante par défaut est `master`, av
 | --- | --- | --- |
 | Architecte | [architect](docs/agents/architect.md) | contrats HTTP, structure et décisions courtes |
 | Développement Spring | [spring-developer](docs/agents/spring-developer.md) | code applicatif et configuration autorisés |
+| Frontend Angular | [angular-developer](docs/agents/angular-developer.md) | responsabilité technique de toute l’implémentation frontend Angular |
 | Identité | [identity-specialist](docs/agents/identity-specialist.md) | sécurité JWT, simulation, préparation Entra |
 | Tests | [test-engineer](docs/agents/test-engineer.md) | tests et fixtures autorisés |
 | GitHub/CI | [github-ci](docs/agents/github-ci.md) | build et workflows autorisés |
 | Infrastructure | [infrastructure](docs/agents/infrastructure.md) | conteneurs, Compose, exploitation Ubuntu et réseau Hyper-V |
 
 Une fiche ne crée pas un agent et n’est pas un périmètre d’écriture implicite.
+
+Le spécialiste Angular est garant de la cohérence de toute l’implémentation frontend : architecture, composants, navigation, formulaires, styles/accessibilité, intégration API/authentification, configuration et tests frontend. Il intervient sur chaque tâche frontend et assure sa revue technique. Cette responsabilité n’en fait pas l’unique auteur : les fichiers restent attribués explicitement, et ses propres changements doivent être relus par un autre agent compétent, auquel la fiche Angular est également transmise. Les contrats sont coordonnés avec l’architecte et Spring ; Identité conserve la politique de confiance et GitHub/CI et Infrastructure leurs périmètres respectifs.
 
 L’infrastructure prépare les images, la configuration d’exécution et les procédures VM ; GitHub/CI conserve les workflows et le build reproductible, et Identité conserve les règles JWT et la confiance envers le fournisseur. Pour une tâche commune, préciser les fichiers de chaque rôle et séquencer les changements partagés. Le rôle infrastructure n’est pas requis pour un changement Java sans effet sur l’exécution.
 
@@ -64,7 +67,7 @@ Ne pas fusionner ni déployer. Rapporter les preuves et limites.
 """
 ```
 
-Décliner le même format pour les autres fiches seulement après vérification du chargement par le runtime cible. Aucune configuration native n’est ajoutée ou annoncée reconnue ici : la compatibilité de ce format avec le CLI installé et son chargement effectif n’ont pas été vérifiés. Les six fiches restent des fiches utilisées par délégation explicite, qui fonctionne dans cette session. Une validation syntaxique TOML seule ne prouverait ni reconnaissance ni exécution d’un agent.
+Décliner le même format pour les autres fiches seulement après vérification du chargement par le runtime cible. Aucune configuration native n’est ajoutée ou annoncée reconnue ici : la compatibilité de ce format avec le CLI installé et son chargement effectif n’ont pas été vérifiés. Les sept fiches restent des fiches utilisées par délégation explicite, qui fonctionne dans cette session. Une validation syntaxique TOML seule ne prouverait ni reconnaissance ni exécution d’un agent.
 
 Si la délégation est absente, appliquer les fiches successivement et annoncer l’exécution par un seul agent ; indiquer que la revue indépendante reste impossible, sans l’inventer.
 
