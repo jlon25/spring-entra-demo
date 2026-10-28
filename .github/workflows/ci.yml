@@ -46,6 +46,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Create ephemeral development credentials
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          import secrets
+          password = secrets.token_urlsafe(24)
+          print("::add-mask::" + password)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
+              environment.write("DEV_IDENTITY_USERNAME=local-user\n")
+              environment.write("DEV_IDENTITY_PASSWORD=" + password + "\n")
+          PYTHON
       - name: Validate Compose configuration
         run: docker compose config --quiet
       - name: Build and wait for healthy containers
