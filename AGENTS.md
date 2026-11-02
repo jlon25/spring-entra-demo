@@ -2,7 +2,7 @@
 
 ## Contexte et état vérifié
 
-Le dépôt fournit le socle d’une API Spring Boot avec Bearer JWT, Spring Security OAuth2 Resource Server et connexion locale simulée ; Microsoft Entra reste une intégration future. Le frontend séparé sera développé avec Angular. Le cadrage de la planification des auditions figure dans [le modèle métier](docs/domain/audition-planning.md) : distinguer ses règles validées, recommandations et décisions encore ouvertes. La conservation durable des dossiers, auditions et disponibilités est un besoin identifié pour l’application cible ; le choix et l’ajout de persistance nécessitent une tâche d’implémentation dédiée, sans base, ORM ou couche repository spéculative.
+Le dépôt fournit le socle d’une API Spring Boot avec Bearer JWT, Spring Security OAuth2 Resource Server et connexion locale simulée ; Microsoft Entra reste une intégration future. Le frontend séparé sera développé avec Angular. Le cadrage de la planification des auditions figure dans [le modèle métier](docs/domain/audition-planning.md) : distinguer ses règles validées, recommandations et décisions encore ouvertes. La conservation durable des dossiers, auditions et disponibilités est un besoin identifié pour l’application cible ; PostgreSQL est la cible privilégiée pour cette persistance. Sa version et son intégration nécessitent une tâche d’implémentation dédiée, sans installation, ORM ou couche repository spéculative.
 
 Constat historique de l’inspection du 13 octobre 2026 (ne décrit pas l’état actuel du dépôt) : la branche distante par défaut est `master`, avec `README.md` et `docs/github-access-test.md`. Aucun code, AGENTS.md antérieur, fichier Maven/Gradle, wrapper ou version Java/Spring déclarée. Java 21.0.12.1 est installé dans l’environnement, sans constituer un choix de version pour le projet. Maven et Gradle ne sont pas présents dans le PATH. Le checkout local initial est sur `work`, sans commit ni modification ; sa référence distante est ancienne. Le connecteur GitHub permet de lire l’état distant actuel ; `git fetch origin` a échoué à joindre le proxy. Refaire cette inspection à chaque nouvelle tâche : ce constat n’est pas une convention définitive.
 
@@ -30,8 +30,11 @@ Constat historique de l’inspection du 13 octobre 2026 (ne décrit pas l’éta
 | Tests | [test-engineer](docs/agents/test-engineer.md) | tests et fixtures autorisés |
 | GitHub/CI | [github-ci](docs/agents/github-ci.md) | build et workflows autorisés |
 | Infrastructure | [infrastructure](docs/agents/infrastructure.md) | conteneurs, Compose, exploitation Ubuntu et réseau Hyper-V |
+| Bases de données / PostgreSQL | [database-specialist](docs/agents/database-specialist.md) | modèle relationnel, intégrité, migrations, transactions et reprise des données |
 
 Une fiche ne crée pas un agent et n’est pas un périmètre d’écriture implicite.
+
+Le spécialiste bases de données est le référent de la persistance PostgreSQL : modèle, contraintes, migrations, concurrence, requêtes et sauvegarde/restauration. Il coordonne les choix transactionnels et l’accès aux données avec Spring, les invariants et contrats avec l’architecte, les scénarios avec Tests, les volumes/droits d’exploitation avec Infrastructure et les vérifications automatiques avec GitHub/CI. Les fichiers partagés sont attribués explicitement et modifiés successivement ; ses propres contributions restent soumises à revue indépendante.
 
 Le spécialiste Angular est garant de la cohérence de toute l’implémentation frontend : architecture, composants, navigation, formulaires, styles/accessibilité, intégration API/authentification, configuration et tests frontend. Il intervient sur chaque tâche frontend et assure sa revue technique. Cette responsabilité n’en fait pas l’unique auteur : les fichiers restent attribués explicitement, et ses propres changements doivent être relus par un autre agent compétent, auquel la fiche Angular est également transmise. Les contrats sont coordonnés avec l’architecte et Spring ; Identité conserve la politique de confiance et GitHub/CI et Infrastructure leurs périmètres respectifs.
 
@@ -67,7 +70,7 @@ Ne pas fusionner ni déployer. Rapporter les preuves et limites.
 """
 ```
 
-Décliner le même format pour les autres fiches seulement après vérification du chargement par le runtime cible. Aucune configuration native n’est ajoutée ou annoncée reconnue ici : la compatibilité de ce format avec le CLI installé et son chargement effectif n’ont pas été vérifiés. Les sept fiches restent des fiches utilisées par délégation explicite, qui fonctionne dans cette session. Une validation syntaxique TOML seule ne prouverait ni reconnaissance ni exécution d’un agent.
+Décliner le même format pour les autres fiches seulement après vérification du chargement par le runtime cible. Aucune configuration native n’est ajoutée ou annoncée reconnue ici : la compatibilité de ce format avec le CLI installé et son chargement effectif n’ont pas été vérifiés. Les huit fiches restent des fiches utilisées par délégation explicite, qui fonctionne dans cette session. Une validation syntaxique TOML seule ne prouverait ni reconnaissance ni exécution d’un agent.
 
 Si la délégation est absente, appliquer les fiches successivement et annoncer l’exécution par un seul agent ; indiquer que la revue indépendante reste impossible, sans l’inventer.
 
