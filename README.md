@@ -151,3 +151,9 @@ try {
 ```
 
 Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La réponse attendue contient `message: authenticated`. Ne pas afficher `$body` ou `$login`, ni activer de traces HTTP/transcription : ils contiennent des données sensibles. Le navigateur seul ne fournit pas de Bearer à `/api/message` ; une connexion par formulaire nécessiterait une interface cliente, hors périmètre actuel. Garder les échanges dans le tunnel SSH ou utiliser HTTPS au-delà du laboratoire.
+
+## Application de planification des auditions — cadrage
+
+Le [modèle métier initial](docs/domain/audition-planning.md) décrit les dossiers, auditions, intervenants, disponibilités, préférences et règles de confirmation. Il distingue les règles validées des décisions encore ouvertes et propose les premiers scénarios d’acceptation.
+
+Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). Ce cadrage ne crée pas encore l’application frontend, les API métier ou la persistance ; le socle d’authentification existant reste disponible.
