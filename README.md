@@ -157,3 +157,5 @@ Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La r
 Le [modèle métier initial](docs/domain/audition-planning.md) décrit les dossiers, auditions, intervenants, disponibilités, préférences et règles de confirmation. Il distingue les règles validées des décisions encore ouvertes et propose les premiers scénarios d’acceptation.
 
 Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). Ce cadrage ne crée pas encore l’application frontend, les API métier ou la persistance ; le socle d’authentification existant reste disponible.
+
+Le [découpage de la première tranche](docs/domain/first-slice-hearing-types.md) précise les petites PR prévues pour les types d’audition, PostgreSQL et l’interface Angular, ainsi que les décisions métier encore à confirmer.
