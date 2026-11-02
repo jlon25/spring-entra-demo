@@ -15,13 +15,13 @@ L’audition est le besoin à organiser. Pour un lieu d’audition renseigné, s
 | Personne auditionnée | Référence interne et informations strictement utiles : langue(s), genre lorsque pertinent pour le besoin exprimé, statut mineur/majeur. Peut être concernée par plusieurs dossiers. |
 | Dossier | Regroupe les auditions d’une personne et porte son défenseur habituel éventuel. La continuité du défenseur est limitée à ce dossier. |
 | Audition | Appartient à un dossier ; référence un type, une langue de base DE/FR/IT, un lieu, une période de recherche et des besoins explicites. La définition précise des champs de recherche reste à concevoir. |
-| Type d’audition | Configuration administrable, dont la durée et la règle de recours au défenseur. Le catalogue initial et les cas exacts de présence du défenseur restent à définir. |
+| Type d’audition | Configuration administrable : durée, pause minimale propre au type et règle de défenseur à deux valeurs « requis / non requis ». Le catalogue initial et les valeurs chiffrées restent à définir. |
 | Besoin particulier | Contrainte explicite d’une audition, avec sa portée : par exemple environnement de même genre ou dispositions liées à la minorité. Le détail des dispositions et les personnes auxquelles elles s’appliquent restent à préciser. |
 | Intervenant | Personne affectable avec un rôle unique à ce stade : défenseur juridique externe, chargé d’audition, procès-verbaliste ou interprète. |
 | Compétence d’interprétation | Langue et niveau de maîtrise par interprète, complétés par les combinaisons de traduction qu’il peut assurer vers la langue de base. Parler deux langues ne prouve pas à lui seul la compétence de traduction. |
 | Disponibilité | Intervalle fourni par un intervenant ; à confronter aux auditions déjà confirmées et à la pause minimale. La collecte et le fuseau des disponibilités restent à préciser. |
 | Lieu | Localisation de l’audition permettant la comparaison géographique des interprètes. Aucune réservation de salle n’est présumée. |
-| Paramètres de planification | Durées par type et pause minimale obligatoire pour chaque intervenant, administrables. |
+| Paramètres de planification | Durées et pauses minimales par type, administrables ; la pause est obligatoire pour chaque intervenant. |
 | Proposition | Créneau et affectations possibles, avec critères appliqués, avertissements et alternatives. Elle ne réserve rien. |
 | Audition confirmée et affectations | Résultat de la validation finale du backend, avec un intervenant pour chaque rôle requis et les paramètres utilisés. |
 
@@ -102,7 +102,7 @@ Le besoin exprimé comprend les échanges avec Outlook, CSV et Excel, ainsi que 
 
 ## Questions ouvertes et limites
 
-- Catalogue des types et règle précise du défenseur selon chaque type ; durée initiale et pause minimale.
+- Catalogue des types et choix « défenseur requis / non requis » pour chacun ; durées et pauses minimales initiales par type. Règle de transition entre types différents à confirmer : voir le [premier découpage](first-slice-hearing-types.md).
 - Échelle de compétences linguistiques, seuils requis par besoin et gestion d’une compétence non renseignée.
 - Dispositions pour mineurs et portée exacte des besoins liés au genre, sans déduction juridique automatique.
 - Forme des disponibilités et fuseaux horaires ; modalités de prise en compte de la personne auditionnée et du lieu.
@@ -115,8 +115,8 @@ Le besoin exprimé comprend les échanges avec Outlook, CSV et Excel, ainsi que 
 
 Collecter et afficher uniquement les données nécessaires à la planification. Ne pas journaliser les informations personnelles de l’audition, les motifs sensibles ou les jetons ; utiliser des exemples fictifs dans les tests et la documentation. Les permissions, durées de conservation et règles d’accès aux données doivent être définies avant utilisation réelle.
 
-## Prochaine tranche fonctionnelle recommandée
+## Trajectoire fonctionnelle après le premier référentiel
 
-Commencer par une tranche limitée : configurer un type et sa pause, renseigner des intervenants/disponibilités et un dossier avec une audition, produire une proposition sans réservation puis la confirmer avec contrôle backend des conflits et de la pause. Définir auparavant les valeurs minimales nécessaires parmi les questions ouvertes et le contrat HTTP correspondant.
+Le [premier découpage](first-slice-hearing-types.md) commence par le référentiel des types et de leurs pauses. Les intervenants/disponibilités, dossiers et auditions, puis la proposition sans réservation et sa confirmation backend constituent des tranches ultérieures. Avant chacune, définir les valeurs et contrats nécessaires parmi les questions ouvertes.
 
 Cette tranche peut être présentée par Angular avec une interface simple avant un calendrier avancé. Les règles de défenseur, d’interprétation et les besoins particuliers nécessaires au cas d’usage doivent rester explicites ; ne pas annoncer une planification exhaustive tant qu’ils ne sont pas vérifiables. Les imports/exports, récurrences, optimisation financière complète et intégration Entra demeurent des tâches distinctes.
