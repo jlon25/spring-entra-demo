@@ -1,0 +1,35 @@
+# Opt in with: docker compose -f compose.yaml -f compose.postgres.yaml ...
+# PostgreSQL is not connected to the API until a separate persistence PR.
+services:
+  postgres:
+    # Explicit supported patch; official image tag, not an immutable digest.
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-auditions}
+      # Bootstrap administrator only. Do not use this account for the future API.
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env for the PostgreSQL override}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      # PostgreSQL 18+ uses PGDATA=/var/lib/postgresql/18/docker.
+      - postgres_data:/var/lib/postgresql
+    # No host port: PostgreSQL is reachable only on the Compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
+    # The official entrypoint prepares ownership, then runs PostgreSQL as postgres.
+    # Do not force the API's UID or remove the capabilities needed for first init.
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:rw,noexec,nosuid,size=16m,mode=3775
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    shm_size: 128mb
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

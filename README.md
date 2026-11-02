@@ -1,6 +1,6 @@
 # spring-entra-demo
 
-API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend ni base de données ; la connexion locale simulée se fait via HTTP. Microsoft Entra sera intégré ultérieurement.
+API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend ; la connexion locale simulée se fait via HTTP. Un socle PostgreSQL optionnel est disponible, mais l’API n’y est pas encore raccordée. Microsoft Entra sera intégré ultérieurement.
 
 ## Prérequis et vérifications
 
@@ -159,3 +159,15 @@ Le [modèle métier initial](docs/domain/audition-planning.md) décrit les dossi
 Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). Ce cadrage ne crée pas encore l’application frontend, les API métier ou la persistance ; le socle d’authentification existant reste disponible.
 
 Le [découpage de la première tranche](docs/domain/first-slice-hearing-types.md) précise les petites PR prévues pour les types d’audition, PostgreSQL et l’interface Angular, ainsi que les décisions métier encore à confirmer.
+
+## Socle PostgreSQL optionnel
+
+PostgreSQL est disponible séparément pour préparer la persistance. L’API n’y est pas encore raccordée. Le lancement Compose actuel reste inchangé.
+
+Pour l’activer, ajouter `POSTGRES_PASSWORD` dans le `.env` existant (voir `.env.example`), puis :
+
+```sh
+docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-timeout 120 postgres
+```
+
+Le [guide PostgreSQL](docs/deployment/postgresql.md) explique le volume persistant, les vérifications SQL, les sauvegardes et la restauration dans une base de contrôle. Ne pas supprimer les volumes lors des mises à jour ; modifier le mot de passe dans `.env` ne le change pas dans une base déjà initialisée.
