@@ -69,3 +69,36 @@ jobs:
       - name: Clean up containers and volumes
         if: always()
         run: docker compose down --volumes --remove-orphans
+
+  postgres-smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COMPOSE_PROJECT_NAME: pg-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create ephemeral database test credentials
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          import secrets
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
+              environment.write("DEV_IDENTITY_USERNAME=local-user\n")
+              for name in ("DEV_IDENTITY_PASSWORD", "POSTGRES_PASSWORD"):
+                  value = secrets.token_urlsafe(24)
+                  print("::add-mask::" + value)
+                  environment.write(name + "=" + value + "\n")
+          PYTHON
+      - name: Validate PostgreSQL Compose configuration
+        run: docker compose -f compose.yaml -f compose.postgres.yaml config --quiet
+      - name: Start isolated PostgreSQL service
+        run: docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-timeout 120 postgres
+      - name: Verify persistence and isolated backup restoration
+        run: python3 dev/postgres_smoke.py --allow-test-databases
+      - name: Clean up disposable database test project
+        if: always()
+        run: docker compose -f compose.yaml -f compose.postgres.yaml down --volumes --remove-orphans
