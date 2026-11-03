@@ -37,7 +37,7 @@ Depuis la VM Linux, après fusion de la PR Docker :
 ```sh
 git clone https://github.com/jlon25/spring-entra-demo.git
 cd spring-entra-demo
-cp .env.example .env  # uniquement si le fichier n’existe pas
+test -f .env || cp .env.example .env  # conserve un fichier existant
 chmod 600 .env
 nano .env  # renseigner DEV_IDENTITY_PASSWORD, minimum 12 caractères
 docker compose config --quiet
@@ -66,15 +66,159 @@ Le test demande le mot de passe du simulateur si `DEV_IDENTITY_PASSWORD` n’est
 
 Pour des ports personnalisés, le script accepte `API_BASE_URL` et `IDENTITY_BASE_URL` (les variables de `.env` ne sont pas exportées automatiquement dans votre shell).
 
-## Accéder depuis l’hôte Windows
+## Récupérer automatiquement l’IP Hyper-V et ouvrir le tunnel
 
-Option recommandée pour ce simulateur : conserver les ports sur la boucle locale de la VM et ouvrir un tunnel depuis PowerShell sur l’hôte. Remplacer UTILISATEUR et IP_VM :
+Cette procédure documente le dépannage effectué avec succès sur la VM Ubuntu 26.04 : le démon KVP était absent ; après installation et réapplication de la règle udev au périphérique existant, Hyper-V a de nouveau affiché l’IP. Elle ne constitue pas un correctif universel : exécuter les étapes de dépannage seulement si le symptôme correspondant est présent. Elle ne modifie pas Docker ni la configuration réseau de la VM.
+
+### 1. Identifier la VM et vérifier les droits depuis Windows
+
+Dans **PowerShell sur l’hôte Windows**, commencer sans élévation :
 
 ```powershell
-ssh -N -L 8080:127.0.0.1:8080 -L 9000:127.0.0.1:9000 UTILISATEUR@IP_VM
+Get-VM | Select-Object Name, State
+Get-VMNetworkAdapter -VMName 'Ubuntu-26.04' |
+    Select-Object -ExpandProperty IPAddresses
 ```
 
-Garder cette fenêtre ouverte ; l’API devient accessible sur `http://localhost:8080` depuis l’hôte et le simulateur sur `http://localhost:9000`. Choisir d’autres ports locaux si nécessaire. Le serveur SSH doit être accessible sur la VM.
+Le nom Hyper-V constaté est `Ubuntu-26.04` ; `ubuntu2604` est le nom Ubuntu, pas le nom de VM à passer à `-VMName`. Adapter le nom à la liste réelle. Ces commandes interrogent l’hôte local ; si la VM est hébergée ailleurs, vérifier l’hôte sélectionné dans le Gestionnaire Hyper-V.
+
+L’exécution sans administrateur Windows a fonctionné avec le compte utilisé pour nos essais, car il dispose de l’accès Hyper-V nécessaire. Cela ne garantit pas les permissions d’un autre compte : en cas d’accès refusé ou module absent, demander l’accès approprié à l’administrateur ou employer la [procédure IP manuelle du README](../../README.md). Il n’est pas nécessaire de réclamer systématiquement une élévation si les commandes sont déjà autorisées.
+
+Si l’IP est affichée, passer directement à l’étape 5. Si la commande ne retourne rien, inspecter les services d’intégration :
+
+```powershell
+Get-VMIntegrationService -VMName 'Ubuntu-26.04' |
+    Format-Table Name, Enabled, PrimaryStatusDescription
+```
+
+L’« Échange de paires clé-valeur » doit être activé et communiquer avec Ubuntu. Le résultat `True / Aucun contact` observé indiquait que l’hôte attendait des informations sans les recevoir. L’« Interface de services d’invité » désactivée ne doit pas être activée pour ce seul besoin. Si l’échange KVP est désactivé côté hôte, faire intervenir une personne disposant des droits requis ; les étapes Ubuntu ne l’activent pas côté Windows.
+
+### 2. Vérifier et installer les outils dans Ubuntu
+
+Utiliser la **console Ubuntu Hyper-V**, ou une session SSH vers une IP déjà connue. Les commandes `sudo` utilisent les droits Ubuntu, distincts des droits Windows :
+
+```sh
+systemctl status hv-kvp-daemon.service --no-pager
+```
+
+Si le service est absent, vérifier les composants avant installation :
+
+```sh
+systemctl list-unit-files --no-pager | grep -Ei 'hyperv|hv.*kvp'
+command -v hv_kvp_daemon
+dpkg -l | grep -E 'hyperv|linux-cloud-tools'
+```
+
+Sur l’installation Ubuntu 26.04 testée, ces sorties étaient vides. Le paquet `linux-cloud-tools-common` fournit le service et ses règles udev ; installer aussi les outils du noyau en cours :
+
+```sh
+sudo apt update
+sudo apt install linux-cloud-tools-common "linux-cloud-tools-$(uname -r)"
+sudo systemctl daemon-reload
+sudo systemctl start hv-kvp-daemon.service
+systemctl status hv-kvp-daemon.service --no-pager
+```
+
+Si APT ne trouve pas le paquet correspondant au noyau, relever `uname -r` et vérifier les dépôts/paquets adaptés ; ne pas remplacer le noyau au hasard. Si le service est `active (running)`, passer à l’étape 5. Vérifier aussi `systemctl is-enabled hv-kvp-daemon.service` ; s’il est désactivé et que l’unité installée prévoit son activation au boot, utiliser `sudo systemctl enable hv-kvp-daemon.service`. Dans nos essais, il était déjà activé par le paquet.
+
+### 3. Diagnostiquer une dépendance KVP en échec
+
+Si le démarrage retourne `A dependency job ... failed`, lire :
+
+```sh
+systemctl cat hv-kvp-daemon.service
+systemctl list-dependencies --all hv-kvp-daemon.service --no-pager
+sudo journalctl -b -u hv-kvp-daemon.service --no-pager -n 30
+lsmod | grep hv_utils
+ls -l /dev/vmbus/
+```
+
+Dans le cas observé, `hv_utils` était chargé et `/dev/vmbus/hv_kvp` existait, mais l’unité dépendait du périphérique systemd `sys-devices-virtual-misc-vmbus\x21hv_kvp.device` non reconnu. Le problème n’était donc pas une absence du module ou de Docker.
+
+Si `hv_utils` n’est pas chargé, essayer `sudo modprobe hv_utils`, vérifier à nouveau les périphériques puis retenter le service. Si le module est introuvable ou le périphérique absent, examiner `sudo journalctl -k -b --no-pager` pour Hyper-V avant de continuer. Ne pas appliquer l’étape suivante à un périphérique inexistant.
+
+Comparer les chemins et propriétés :
+
+```sh
+readlink -f /sys/class/misc/hv_kvp
+readlink -f '/sys/class/misc/vmbus!hv_kvp'
+udevadm info --query=property --name=/dev/vmbus/hv_kvp
+```
+
+La première commande peut afficher son argument même si le lien attendu n’existe pas ; ce résultat seul ne prouve pas un périphérique. Dans le diagnostic réussi, la deuxième résolvait `/sys/devices/virtual/misc/vmbus!hv_kvp` et udev indiquait `DEVPATH=/devices/virtual/misc/vmbus!hv_kvp`, sans tag systemd. Le chemin correspondait donc au service, mais les règles nouvellement installées n’avaient vraisemblablement pas encore été appliquées au périphérique déjà présent.
+
+### 4. Réappliquer les règles udev au seul périphérique KVP
+
+Pour **ce cas précis**, avec le périphérique et le chemin précédents présents :
+
+```sh
+sudo udevadm control --reload-rules
+sudo udevadm trigger --action=add '/sys/devices/virtual/misc/vmbus!hv_kvp'
+sudo udevadm settle
+sudo systemctl reset-failed hv-kvp-daemon.service
+sudo systemctl start hv-kvp-daemon.service
+systemctl status hv-kvp-daemon.service --no-pager
+```
+
+Attendu : `active (running)`. Cela ne supprime pas la dépendance du service et ne modifie pas son fichier fourni par Ubuntu. Aucun redémarrage de Docker ou de la VM n’a été nécessaire dans le cas observé.
+
+En cas d’échec persistant, conserver les sorties et vérifier la règle installée :
+
+```sh
+cat /usr/lib/udev/rules.d/60-hv-kvp-daemon.rules
+udevadm info --query=property --name=/dev/vmbus/hv_kvp
+```
+
+Ne pas supprimer `BindsTo`, rendre le périphérique accessible à tous ou déclencher globalement tous les périphériques pour contourner l’erreur.
+
+### 5. Confirmer la remontée et ouvrir le tunnel automatique
+
+Attendre quelques secondes puis, dans **PowerShell Windows** :
+
+```powershell
+Get-VMNetworkAdapter -VMName 'Ubuntu-26.04' |
+    Select-Object -ExpandProperty IPAddresses
+```
+
+Dans nos essais, le résultat affichait une IPv4 `192.168.1.46` et une IPv6 locale au lien `fe80::…`. L’IPv4 n’est pas figée : le bloc suivant la récupère à chaque lancement et refuse une sélection ambiguë.
+
+```powershell
+& {
+    $VmName = 'Ubuntu-26.04' # nom exact affiché par Get-VM
+    $VmUser = 'jerome'
+    $VmIps = @(
+        Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop |
+            Select-Object -ExpandProperty IPAddresses |
+            Where-Object { $_ -match '^192\.168\.1\.\d{1,3}$' } |
+            Sort-Object -Unique
+    )
+
+    if ($VmIps.Count -ne 1) {
+        throw "Impossible de choisir une IP unique pour la VM : vérifier KVP, les interfaces et le filtre réseau."
+    }
+
+    Write-Host "Ouverture du tunnel vers $($VmIps[0])"
+    ssh -N -o ExitOnForwardFailure=yes `
+        -L 127.0.0.1:8080:127.0.0.1:8080 `
+        -L 127.0.0.1:9000:127.0.0.1:9000 `
+        "$VmUser@$($VmIps[0])"
+}
+```
+
+Adapter le nom de VM, le compte Ubuntu et le filtre `192.168.1.x` si le réseau change. Le script ne prend pas arbitrairement la première adresse et n’utilise pas l’IPv6 `fe80::…`. Si aucune ou plusieurs IPv4 correspondent, inspecter les interfaces ou revenir à la vérification manuelle ; ne pas supprimer le contrôle d’unicité sans choisir le réseau attendu.
+
+Saisir le mot de passe **SSH Ubuntu**, vérifier la clé hôte lors d’une nouvelle connexion et garder la fenêtre ouverte. Si un tunnel occupe déjà ces ports, le conserver ou le fermer avant d’en lancer un autre. Dans une **seconde fenêtre PowerShell**, vérifier :
+
+```powershell
+curl.exe --noproxy "*" -i http://127.0.0.1:8080/public/ping
+curl.exe --noproxy "*" -i http://127.0.0.1:8080/api/message
+```
+
+Attendus : `200` et `401`. Le navigateur peut alors ouvrir `http://127.0.0.1:8080/public/ping`. Cette adresse désigne Windows ; le tunnel est nécessaire pour rejoindre la boucle locale de la VM. La connexion simulée et son mot de passe distinct de SSH sont décrits dans le README. Les commandes supposent les ports par défaut ; adapter les destinations du tunnel si les ports publiés ont changé.
+
+## Accès réseau direct optionnel depuis Windows
+
+Le tunnel SSH documenté ci-dessus conserve les ports de la VM privés. L’alternative suivante est réservée à un LAN de développement de confiance.
 
 Pour rendre l’API accessible directement sur un LAN de développement de confiance, modifier `.env` :
 
@@ -114,3 +258,6 @@ Consultées pour cette configuration :
 - [Installer Docker Engine sur Ubuntu](https://docs.docker.com/engine/install/ubuntu/) : distribution supportée, dépôt officiel, plugin Compose et limites des règles de pare-feu.
 - [Ordre de démarrage Compose](https://docs.docker.com/compose/how-tos/startup-order/) : attente de `service_healthy`.
 - [Commutateurs virtuels Hyper-V](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/get-started/create-a-virtual-switch-for-hyper-v-virtual-machines) : choix du réseau de la VM.
+
+- [Paquet Ubuntu 26.04 linux-cloud-tools-common](https://packages.ubuntu.com/resolute/all/linux-cloud-tools-common/filelist) : service KVP, binaire et règle udev.
+- [Get-VMNetworkAdapter](https://learn.microsoft.com/en-us/powershell/module/hyper-v/get-vmnetworkadapter?view=windowsserver2025-ps) : interrogation des interfaces de la VM sur l’hôte Hyper-V.

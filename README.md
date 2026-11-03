@@ -109,6 +109,35 @@ Compose smoke check passed: public ping, Bearer rejection, public JWKS, local lo
 
 Le script demande le mot de passe local sans l’afficher et vérifie aussi l’accès protégé avec un vrai JWT signé sans afficher le jeton. Il nécessite Python 3 sur la VM ; les ports ci-dessus correspondent aux valeurs par défaut de Compose.
 
+### Tunnel automatique via Hyper-V
+
+La [procédure d’installation et de dépannage KVP](docs/deployment/docker-hyperv.md#récupérer-automatiquement-lip-hyper-v-et-ouvrir-le-tunnel) explique comment installer les outils Ubuntu et rétablir la remontée des IP si Hyper-V ne les affiche pas. Après cette préparation, dans PowerShell sur l’hôte Windows :
+
+```powershell
+& {
+    $VmName = 'Ubuntu-26.04' # nom exact affiché par Get-VM
+    $VmUser = 'jerome'
+    $VmIps = @(
+        Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop |
+            Select-Object -ExpandProperty IPAddresses |
+            Where-Object { $_ -match '^192\.168\.1\.\d{1,3}$' } |
+            Sort-Object -Unique
+    )
+
+    if ($VmIps.Count -ne 1) {
+        throw "Impossible de choisir une IP unique pour la VM : vérifier KVP, les interfaces et le filtre réseau."
+    }
+
+    Write-Host "Ouverture du tunnel vers $($VmIps[0])"
+    ssh -N -o ExitOnForwardFailure=yes `
+        -L 127.0.0.1:8080:127.0.0.1:8080 `
+        -L 127.0.0.1:9000:127.0.0.1:9000 `
+        "$VmUser@$($VmIps[0])"
+}
+```
+
+Ce bloc réutilisable utilise le nom **Hyper-V** `Ubuntu-26.04`, différent du nom Ubuntu `ubuntu2604`. Il fonctionne sans élévation avec un compte autorisé à interroger Hyper-V, comme dans nos essais. Adapter `192.168.1.x` si le réseau change. Saisir le mot de passe SSH et garder la fenêtre ouverte ; les tests Windows ci-dessous se font dans une seconde fenêtre. En cas d’accès Hyper-V impossible, utiliser la procédure manuelle suivante.
+
 ### Vérifier l’IP de la VM puis ouvrir le tunnel depuis Windows
 
 **1. Dans Ubuntu**, depuis la console Hyper-V (ou une session SSH encore valide), relever les adresses IPv4 :
@@ -128,7 +157,7 @@ $VmUser = 'jerome'    # adapter le compte Ubuntu si nécessaire
 Test-NetConnection -ComputerName $VmIp -Port 22
 ```
 
-`TcpTestSucceeded` doit être `True`. Cela vérifie que le port SSH répond à cette IP, pas l’identité de la machine : vérifier ensuite la clé hôte SSH. Si le test échoue, contrôler l’IP, l’accès réseau Hyper-V et le serveur SSH avant de chercher un problème Docker. Le nom de la VM `ubuntu2604` n’est pas nécessairement résolu par le DNS Windows. Une adresse attribuée par DHCP peut changer ; refaire cette vérification après un changement réseau ou un redémarrage.
+`TcpTestSucceeded` doit être `True`. Cela vérifie que le port SSH répond à cette IP, pas l’identité de la machine : vérifier ensuite la clé hôte SSH. Si le test échoue, contrôler l’IP, l’accès réseau Hyper-V et le serveur SSH avant de chercher un problème Docker. Le nom Ubuntu `ubuntu2604` n’est pas nécessairement résolu par le DNS Windows. Une adresse attribuée par DHCP peut changer ; refaire cette vérification après un changement réseau ou un redémarrage.
 
 **3. Dans la même fenêtre PowerShell**, ouvrir le tunnel en réutilisant ces variables :
 
