@@ -88,7 +88,8 @@ jobs:
           import secrets
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
               environment.write("DEV_IDENTITY_USERNAME=local-user\n")
-              for name in ("DEV_IDENTITY_PASSWORD", "POSTGRES_PASSWORD"):
+              for name in ("DEV_IDENTITY_PASSWORD", "POSTGRES_PASSWORD",
+                           "APP_DB_PASSWORD", "DB_MIGRATION_PASSWORD"):
                   value = secrets.token_urlsafe(24)
                   print("::add-mask::" + value)
                   environment.write(name + "=" + value + "\n")
@@ -102,3 +103,60 @@ jobs:
       - name: Clean up disposable database test project
         if: always()
         run: docker compose -f compose.yaml -f compose.postgres.yaml down --volumes --remove-orphans
+
+  hearing-types-integration:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-bookworm
+        env:
+          POSTGRES_DB: auditions
+          POSTGRES_USER: postgres
+          # Disposable CI fixture only; never use this value outside this job.
+          POSTGRES_PASSWORD: disposable-ci-postgres-only
+          POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+          POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d auditions"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/auditions?currentSchema=auditions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Java 21
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Create ephemeral application and migration credentials
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          import secrets
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
+              for names in (("APP_DB_PASSWORD", "TEST_DB_APP_PASSWORD"),
+                            ("DB_MIGRATION_PASSWORD", "TEST_DB_MIGRATION_PASSWORD")):
+                  value = secrets.token_urlsafe(24)
+                  print("::add-mask::" + value)
+                  for name in names:
+                      environment.write(name + "=" + value + "\n")
+          PYTHON
+      - name: Prepare isolated database roles and schema
+        env:
+          PGPASSWORD: disposable-ci-postgres-only
+        run: |
+          command -v psql
+          psql -h 127.0.0.1 -U postgres -d auditions -X -v ON_ERROR_STOP=1 -f dev/postgres_prepare.sql
+          psql -h 127.0.0.1 -U postgres -d auditions -X -v ON_ERROR_STOP=1 -f dev/postgres_prepare.sql
+      - name: Verify migrations, API, permissions and concurrent updates on PostgreSQL
+        run: ./mvnw --batch-mode --no-transfer-progress -Ppostgres-it verify

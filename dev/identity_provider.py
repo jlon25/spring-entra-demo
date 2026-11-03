@@ -20,6 +20,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlsplit
 
 
+# Fixed permissions of the one development account; never selected by the client.
+DEV_SCOPES = "api.read hearing-types.read hearing-types.write"
+
+
 def configuration(environ=None):
     """Read explicit container overrides while keeping standalone loopback defaults."""
     values = os.environ if environ is None else environ
@@ -102,7 +106,7 @@ class DevelopmentIdentity:
         header = {"alg": "RS256", "typ": "JWT", "kid": self.jwk["kid"]}
         claims = {
             "iss": self.issuer, "aud": "spring-entra-demo", "sub": subject,
-            "iat": now, "nbf": now, "exp": now + 300, "scope": "api.read",
+            "iat": now, "nbf": now, "exp": now + 300, "scope": DEV_SCOPES,
         }
         signing_input = ".".join(
             base64url(json.dumps(value, separators=(",", ":")).encode("utf-8"))
@@ -112,7 +116,7 @@ class DevelopmentIdentity:
                             data=signing_input)
         return {
             "access_token": signing_input.decode("ascii") + "." + base64url(signature),
-            "token_type": "Bearer", "expires_in": 300, "scope": "api.read",
+            "token_type": "Bearer", "expires_in": 300, "scope": DEV_SCOPES,
         }
 
 
@@ -226,3 +230,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

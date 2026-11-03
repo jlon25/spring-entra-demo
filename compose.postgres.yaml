@@ -1,6 +1,19 @@
 # Opt in with: docker compose -f compose.yaml -f compose.postgres.yaml ...
-# PostgreSQL is not connected to the API until a separate persistence PR.
+# Start postgres, run dev/postgres_prepare.sh, then start the complete stack.
 services:
+  api:
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-auditions}?currentSchema=auditions
+      SPRING_DATASOURCE_USERNAME: auditions_app
+      SPRING_DATASOURCE_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env for the PostgreSQL override}
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-auditions}?currentSchema=auditions
+      SPRING_FLYWAY_USER: auditions_migrator
+      SPRING_FLYWAY_PASSWORD: ${DB_MIGRATION_PASSWORD:?Set DB_MIGRATION_PASSWORD in .env for the PostgreSQL override}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     # Explicit supported patch; official image tag, not an immutable digest.
     image: postgres:18.6-bookworm
@@ -11,6 +24,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env for the PostgreSQL override}
       POSTGRES_HOST_AUTH_METHOD: scram-sha-256
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      # Used only by the explicit prepare command, including on existing volumes.
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env for the PostgreSQL override}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?Set DB_MIGRATION_PASSWORD in .env for the PostgreSQL override}
     volumes:
       # PostgreSQL 18+ uses PGDATA=/var/lib/postgresql/18/docker.
       - postgres_data:/var/lib/postgresql
@@ -33,3 +49,4 @@ services:
 
 volumes:
   postgres_data:
+

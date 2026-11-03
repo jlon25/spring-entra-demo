@@ -2,7 +2,7 @@
 
 ## Statut et objectif
 
-Ce cadrage prépare une première fonctionnalité complète, du stockage PostgreSQL à l’écran Angular : consulter, créer et modifier les types d’audition et la pause minimale. Il complète le [modèle métier](audition-planning.md), sans modifier les règles déjà retenues. Les choix proposés et les décisions encore ouvertes sont distingués ci-dessous ; aucun comportement décrit ici n’est encore implémenté.
+Ce cadrage prépare une première fonctionnalité complète, du stockage PostgreSQL à l’écran Angular : consulter, créer et modifier les types d’audition et la pause minimale. Il complète le [modèle métier](audition-planning.md), sans modifier les règles déjà retenues. Les choix proposés et les décisions encore ouvertes sont distingués ci-dessous ; le socle PostgreSQL et l’API des types sont implémentés ; Angular reste à livrer. Le [contrat de l’API](../api/hearing-types.md) fixe les limites et permissions de cette tranche.
 
 La livraison se fera par petites PR, chacune avec un périmètre, des vérifications et une stratégie de reprise. La fusion d’une PR documentaire ne signifie pas que la fonctionnalité est disponible.
 
@@ -22,7 +22,7 @@ Pour cette première tranche, proposer un référentiel simple de types avec :
 | Champ | Proposition à implémenter après revue |
 | --- | --- |
 | Identifiant | Référence stable attribuée par le backend, indépendante du libellé |
-| Libellé | Texte obligatoire après suppression des espaces de bord ; longueur maximale à fixer dans le contrat API |
+| Libellé | Texte obligatoire après suppression des espaces de bord ; maximum 120 unités UTF-16 après normalisation, fixé dans le contrat API |
 | Durée | Nombre entier strictement positif exprimé en minutes ; aucune valeur métier par défaut inventée |
 | Règle de défenseur | Deux valeurs explicites : « requis » ou « non requis », sans troisième valeur facultative |
 | Pause minimale | Nombre entier strictement positif en minutes, propre à ce type et applicable à tous les intervenants |
@@ -35,10 +35,10 @@ Premiers parcours proposés : liste des types, création, édition, consultation
 ## Décisions restantes et échéance
 
 1. **Transition entre types** : la pause propre à chaque type est validée, mais la règle entre deux types différents reste à préciser. Recommandation à confirmer : appliquer la pause du type qui vient de se terminer, pour chaque intervenant (exemple fictif : fin à 10 h et pause du type précédent de 15 minutes → prochain début au plus tôt à 10 h 15). Cette règle devra être vérifiée des deux côtés d’un créneau. Elle doit être arrêtée avant le moteur de planification, mais ne bloque pas la création du référentiel des types. Le choix alternatif du maximum des deux pauses ne doit pas être introduit implicitement.
-2. **Permissions** : identifier qui peut lire et qui peut modifier la configuration. Proposition technique : séparer les permissions de consultation et d’administration, les faire vérifier par Spring et adapter le compte simulé explicitement. Les noms de scopes et leur attribution restent à confirmer ; le scope actuel `api.read` ne prouve aucun droit d’administration.
-3. **Contrat précis** : arrêter les limites de champs, les statuts et le format d’erreur, ainsi que la sémantique d’une modification concurrente. Les routes et DTO seront décrits dans la PR backend avant leur consommation par Angular.
+2. **Permissions** : identifier qui peut lire et qui peut modifier la configuration. Proposition technique : séparer les permissions de consultation et d’administration, les faire vérifier par Spring et adapter le compte simulé explicitement. Les scopes `hearing-types.read` et `hearing-types.write` sont validés, attribués tous deux au compte local de développement ; le scope actuel `api.read` ne prouve aucun droit d’administration.
+3. **Contrat précis** : les limites de champs, statuts, erreurs et conflits concurrents sont fixés dans le [contrat API](../api/hearing-types.md), avant leur consommation par Angular.
 
-Les permissions et le contrat précis sont à arrêter avant la PR de l’API métier ; la transition des pauses est à décider avant le moteur. Ces questions n’empêchent pas de préparer une PR technique PostgreSQL indépendante.
+Les permissions et le contrat précis sont fixés dans le contrat API ; la transition des pauses est à décider avant le moteur. Ces questions n’empêchent pas de préparer une PR technique PostgreSQL indépendante.
 
 ## Contrat de comportement attendu
 
@@ -78,4 +78,5 @@ Ces scénarios sont à implémenter et ne constituent pas des tests exécutés :
 
 L’architecte prépare les contrats ; Bases de données conçoit stockage et migrations avec Spring ; Identité précise les permissions ; Angular est garant du frontend ; Infrastructure prend en charge les services/volumes ; GitHub/CI et Tests apportent les preuves adaptées. Les périmètres de fichiers sont attribués par l’agent principal et chaque contribution reçoit une revue indépendante.
 
-Le moteur de propositions, les dossiers/personnes, les compétences linguistiques, les disponibilités, les imports/exports et Entra restent des étapes ultérieures. Aucun nouveau serveur, code applicatif ou accès à la VM n’est ajouté par cette PR. Une petite PR facilite la revue et le revert du code, mais ne rend pas automatiquement réversible une transformation de données : vérifier ce point à chaque migration.
+Le moteur de propositions, les dossiers/personnes, les compétences linguistiques, les disponibilités, les imports/exports et Entra restent des étapes ultérieures. Le cadrage initial était documentaire ; l’API et les migrations ont été ajoutées dans la tranche suivante, sans accès automatique à la VM. Une petite PR facilite la revue et le revert du code, mais ne rend pas automatiquement réversible une transformation de données : vérifier ce point à chaque migration.
+

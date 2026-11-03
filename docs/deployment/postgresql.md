@@ -1,10 +1,10 @@
 # Socle PostgreSQL de développement
 
-## Portée de cette PR
+## Portée
 
 Ce socle ajoute un serveur PostgreSQL **18.6** (`postgres:18.6-bookworm`, image officielle) avec stockage persistant et vérifications de sauvegarde/restauration. La version18 est supportée ; le tag de patch est explicite mais n’est pas un digest immuable. Ne pas changer de version majeure en réutilisant le volume sans procédure de migration.
 
-L’API Spring n’est pas encore raccordée à la base : aucune dépendance JDBC/ORM, migration ou table métier n’est ajoutée. Le futur compte applicatif et l’outil de migration seront créés dans une PR distincte. Le compte `POSTGRES_USER` de cette étape est un administrateur d’initialisation, pas le compte de l’API.
+Le profil Spring `postgres` raccorde maintenant l’API à la base avec JDBC et Flyway. La migration V1 crée le référentiel `auditions.hearing_type`, sans données initiales. Le compte `POSTGRES_USER` reste l’administrateur d’initialisation ; l’API utilise exclusivement `auditions_app`, les migrations `auditions_migrator`. Aucun ORM ni génération automatique du schéma.
 
 PostgreSQL est opt-in via `compose.postgres.yaml`. Le fichier `compose.yaml` et son lancement habituel restent inchangés. Aucun port5432 n’est publié sur la VM ou Windows ; les outils PostgreSQL sont disponibles dans le conteneur.
 
@@ -16,9 +16,11 @@ Depuis le dossier du projet à jour, conserver le `.env` existant et ajouter les
 POSTGRES_DB=auditions
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=
+APP_DB_PASSWORD=
+DB_MIGRATION_PASSWORD=
 ```
 
-Renseigner un mot de passe PostgreSQL local distinct du mot de passe du simulateur, SSH ou Microsoft. La valeur vide ci-dessus est un emplacement à remplir, pas un mot de passe utilisable. Entourer la vraie valeur de quotes simples dans `.env` pour éviter l’interpolation de `$`. Ne pas versionner ni afficher `.env`. Conserver également `DEV_IDENTITY_PASSWORD`, nécessaire à la configuration Compose de base.
+Renseigner trois mots de passe PostgreSQL locaux distincts, différents du mot de passe du simulateur, SSH ou Microsoft. La valeur vide ci-dessus est un emplacement à remplir, pas un mot de passe utilisable. Entourer la vraie valeur de quotes simples dans `.env` pour éviter l’interpolation de `$`. Ne pas versionner ni afficher `.env`. Conserver également `DEV_IDENTITY_PASSWORD`, nécessaire à la configuration Compose de base.
 
 ```sh
 chmod 600 .env
@@ -27,14 +29,25 @@ docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-time
 docker compose -f compose.yaml -f compose.postgres.yaml ps
 ```
 
-Pour démarrer aussi l’API et le simulateur :
+Avant de raccorder l’API, sauvegarder une base existante puis préparer les rôles et le schéma, y compris sur un volume déjà initialisé :
+
+```sh
+bash dev/postgres_backup.sh "backups/auditions-$(date -u +%Y-%m-%d_%H-%M-%SZ).dump"
+bash dev/postgres_prepare.sh
+```
+
+La préparation nécessite le compte administrateur local. Elle crée les deux rôles sans privilèges administratifs et le schéma dédié ; elle réapplique explicitement les mots de passe des deux rôles depuis les variables du conteneur, mais ne change pas celui de `POSTGRES_USER`. Après modification de ces variables dans `.env`, recréer le service avec `up -d --wait ... postgres` avant de relancer la préparation. Aucun script d’initialisation de volume vide n’est utilisé pour contourner les volumes existants.
+
+Le script refuse un propriétaire de schéma inattendu ou des rôles privilégiés préexistants. En cas de refus, examiner la situation ; ne pas supprimer le volume ou appliquer automatiquement un baseline Flyway. La préparation n’installe pas de tables métier et ne les efface pas.
+
+Pour démarrer aussi l’API et le simulateur (Flyway crée la table au démarrage) :
 
 ```sh
 docker compose -f compose.yaml -f compose.postgres.yaml up --build --wait --wait-timeout 180
 python3 dev/compose_smoke.py
 ```
 
-Le test JWT reste indépendant de PostgreSQL et demande le mot de passe du simulateur. Vérifier une requête SQL séparément :
+Le test JWT vérifie toujours l’authentification HTTP et demande le mot de passe du simulateur. Les tests du référentiel sont décrits dans le [contrat API](../api/hearing-types.md). Vérifier une requête SQL séparément :
 
 ```sh
 docker compose -f compose.yaml -f compose.postgres.yaml exec -T postgres sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT current_database(), version();"'
@@ -80,7 +93,7 @@ docker compose -f compose.yaml -f compose.postgres.yaml exec -T postgres sh -c '
 docker compose -f compose.yaml -f compose.postgres.yaml exec -T postgres sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d auditions_restore_check -c "SELECT current_database();" -c "\\dt"'
 ```
 
-Si `auditions_restore_check` existe déjà, choisir un autre nom ; ne pas supprimer une base inconnue ni restaurer par-dessus `auditions`. Vérifier les tables et données attendues avant de conclure. Dans ce socle sans tables métier, la CI crée un témoin fictif et prouve sa relecture après restauration ; une future sauvegarde réelle devra être contrôlée avec ses propres données de référence.
+Si `auditions_restore_check` existe déjà, choisir un autre nom ; ne pas supprimer une base inconnue ni restaurer par-dessus `auditions`. Vérifier les tables et données attendues avant de conclure. Pour le test de socle, la CI crée un témoin fictif et prouve sa relecture après restauration ; une future sauvegarde réelle devra être contrôlée avec ses propres données de référence.
 
 Les options `--no-owner --no-privileges` facilitent cette restauration de contrôle sous un administrateur local ; elles ne reproduisent pas les droits de production. La procédure de restauration réelle devra aussi rétablir et vérifier les droits appropriés.
 
@@ -90,11 +103,17 @@ Le job CI `postgres-smoke` crée un projet isolé `pg-smoke-…`, initialise deu
 
 Le script `dev/postgres_smoke.py --allow-test-databases` refuse une exécution hors d’un projet de test au préfixe `pg-smoke-`. **Ce script recrée le conteneur PostgreSQL : ne pas le lancer sur le projet utilisé par l’application.** Sur la VM habituelle, employer les vérifications SQL et la procédure de restauration dans une nouvelle base décrites ci-dessus.
 
-Une réussite sur le runner CI ne démontre pas encore l’exécution sur la VM personnelle. L’ajout d’index métier, les contraintes de concurrence des auditions et les migrations seront vérifiés avec leurs futures PR.
+Le job `hearing-types-integration` prépare une base PostgreSQL 18.6 isolée puis exécute `./mvnw --batch-mode --no-transfer-progress -Ppostgres-it verify` : vrais JWT signés, migrations, contraintes, droits et mises à jour concurrentes. Ce profil exige `TEST_DB_URL`, `TEST_DB_APP_PASSWORD` et `TEST_DB_MIGRATION_PASSWORD` et ne doit viser qu’une base de test préparée : il ajoute des lignes fictives. Le `verify` standard conserve les tests sans base ; il ne constitue pas une preuve du fonctionnement PostgreSQL.
+
+Une réussite sur le runner CI ne démontre pas encore l’exécution sur la VM personnelle. Les futures réservations d’auditions nécessiteront leurs propres contraintes de concurrence.
 
 ## Retour à la configuration précédente
 
-Arrêter uniquement PostgreSQL si nécessaire, puis continuer à utiliser le `compose.yaml` de base pour API/identité. Conserver le volume et les sauvegardes : le retrait du service ou un revert Git ne justifie pas leur effacement. Le serveur n’étant pas encore utilisé par l’API, celle-ci conserve son fonctionnement précédent.
+La migration V1 est additive : l’ancien code sans persistance peut démarrer en ignorant le schéma. Pour revenir au mode API/JWT sans DB, recréer l’API avec le seul `compose.yaml` ; les routes métier ne sont alors pas disponibles. Conserver le volume, les rôles et les sauvegardes. Ne pas retirer la table ni modifier V1 après application ; toute correction ultérieure passe par une nouvelle migration.
+
+L’application locale détient les deux identifiants pour exécuter les migrations au démarrage. Les comptes SQL sont distincts, mais cela ne constitue pas une séparation de secrets entre processus : pour une production future, exécuter les migrations dans un processus dédié avant le lancement de l’API avec son seul compte DML. Le compte applicatif dispose seulement de SELECT/INSERT/UPDATE sur la table métier, pas de DELETE, DDL ou écriture dans l’historique Flyway.
+
+Le dump n’inclut pas les rôles globaux. La restauration de contrôle avec `--no-owner --no-privileges` vérifie les données, mais ne suffit pas pour redémarrer l’API : une reprise réelle doit rétablir les propriétaires et droits du schéma, de la table et de l’historique, puis vérifier Flyway et les accès sous chaque compte. Ne pas prendre une restauration administrative pour une validation des droits applicatifs.
 
 ## Sources officielles consultées
 
@@ -102,3 +121,4 @@ Arrêter uniquement PostgreSQL si nécessaire, puis continuer à utiliser le `co
 - [Image officielle PostgreSQL](https://hub.docker.com/_/postgres) : tag, layout18, variables d’initialisation et persistance.
 - [pg_dump PostgreSQL18](https://www.postgresql.org/docs/18/app-pgdump.html) : archive custom et périmètre d’une base.
 - [pg_restore PostgreSQL18](https://www.postgresql.org/docs/18/app-pgrestore.html) : restauration et droits.
+

@@ -1,6 +1,6 @@
 # spring-entra-demo
 
-API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend ; la connexion locale simulée se fait via HTTP. Un socle PostgreSQL optionnel est disponible, mais l’API n’y est pas encore raccordée. Microsoft Entra sera intégré ultérieurement.
+API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend ; la connexion locale simulée se fait via HTTP. Le profil optionnel `postgres` raccorde l’API à PostgreSQL et expose le référentiel des types d’audition. Microsoft Entra sera intégré ultérieurement.
 
 ## Prérequis et vérifications
 
@@ -29,7 +29,7 @@ Second terminal :
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique. **`POST /token`** vérifie les identifiants avant d’émettre un JWT de cinq minutes avec `api.read` ; `GET /token` ne délivre plus de jeton (`405`). Les clés privées restent temporaires et aucun jeton ni mot de passe n’est journalisé.
+Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique. **`POST /token`** vérifie les identifiants avant d’émettre un JWT de cinq minutes avec `api.read`, `hearing-types.read` et `hearing-types.write` ; `GET /token` ne délivre plus de jeton (`405`). Les clés privées restent temporaires et aucun jeton ni mot de passe n’est journalisé.
 
 Il s’agit d’un compte de développement unique configuré par `DEV_IDENTITY_USERNAME` (défaut `local-user`) et `DEV_IDENTITY_PASSWORD` (obligatoire, 12 caractères minimum, sans valeur par défaut). Ce compte ne correspond ni à un utilisateur Ubuntu ni à un compte Microsoft. Aucun mot de passe n’est stocké en base ; il reste dans la configuration locale et la mémoire du simulateur. Ne pas réutiliser un vrai mot de passe personnel. Ce mécanisme n’est pas un serveur OAuth ni une authentification de production ; pas de création de compte, MFA, renouvellement ou révocation.
 
@@ -41,7 +41,7 @@ python3 dev/compose_smoke.py
 
 Le script utilise les ports par défaut et `local-user`. Pour un autre compte, exporter `DEV_IDENTITY_USERNAME`. La CI fournit un mot de passe éphémère par variable d’environnement ; en terminal il est demandé si cette variable n’est pas définie. Le script ne charge pas `.env` : pour un utilisateur autre que `local-user`, exporter `DEV_IDENTITY_USERNAME` dans le terminal de test.
 
-Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in: 300` et `scope: api.read`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
+Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in: 300` et `scope: api.read hearing-types.read hearing-types.write`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
 
 
 ## Contrat de sécurité
@@ -50,7 +50,9 @@ Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: applic
 | --- | --- |
 | `GET /public/ping` | Public, JSON `{"message":"pong"}` |
 | `GET /api/message` | JWT valide et autorité `SCOPE_api.read` |
-| Toute autre route | Refusée par défaut |
+| `GET /api/hearing-types` et `GET /api/hearing-types/{id}` | Profil `postgres`, droit `hearing-types.read` |
+| `POST /api/hearing-types` et `PUT /api/hearing-types/{id}` | Profil `postgres`, droit `hearing-types.write` |
+| Toute autre route ou méthode | Refusée par défaut |
 
 Jeton absent/invalide : `401`. JWT valide sans scope requis : `403`. Seul RS256 est accepté avec une clé du JWKS configuré. Signature, issuer exact, audience et expiration obligatoire sont vérifiés ; `nbf` est vérifié s’il est présent. Tolérance d’horloge : 60 secondes. Les scopes `scope` ou `scp` deviennent des autorités `SCOPE_…`. L’identité n’accorde pas de permission sans règle explicite.
 
@@ -235,19 +237,26 @@ Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La r
 
 Le [modèle métier initial](docs/domain/audition-planning.md) décrit les dossiers, auditions, intervenants, disponibilités, préférences et règles de confirmation. Il distingue les règles validées des décisions encore ouvertes et propose les premiers scénarios d’acceptation.
 
-Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). Ce cadrage ne crée pas encore l’application frontend, les API métier ou la persistance ; le socle d’authentification existant reste disponible.
+Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). L’API des types et sa persistance sont maintenant implémentées ; Angular et les autres fonctions métier restent à développer.
 
 Le [découpage de la première tranche](docs/domain/first-slice-hearing-types.md) précise les petites PR prévues pour les types d’audition, PostgreSQL et l’interface Angular, ainsi que les décisions métier encore à confirmer.
 
-## Socle PostgreSQL optionnel
+## PostgreSQL et API des types d’audition
 
-PostgreSQL est disponible séparément pour préparer la persistance. L’API n’y est pas encore raccordée. Le lancement Compose actuel reste inchangé.
+Le Compose de base conserve le mode API/JWT sans base. Avec `compose.postgres.yaml`, le profil `postgres` active JDBC, les migrations Flyway et les routes des types d’audition. Consulter le [contrat API](docs/api/hearing-types.md).
 
-Pour activer seulement PostgreSQL, ajouter `POSTGRES_PASSWORD` dans le `.env` existant (voir `.env.example`), en conservant les paramètres du simulateur :
+Après mise à jour du dépôt, conserver le `.env` existant. Renseigner `POSTGRES_PASSWORD` s’il manque et ajouter **deux mots de passe locaux distincts**, `APP_DB_PASSWORD` et `DB_MIGRATION_PASSWORD` (voir `.env.example`). Les valeurs réelles restent privées ; entourer chaque valeur de quotes simples. Conserver les paramètres du simulateur et sauvegarder la base avant la mise à jour :
+
+```sh
+bash dev/postgres_backup.sh "backups/auditions-$(date -u +%Y-%m-%d_%H-%M-%SZ).dump"
+```
+
+Démarrer PostgreSQL puis préparer les comptes et le schéma sur le volume existant :
 
 ```sh
 docker compose -f compose.yaml -f compose.postgres.yaml config --quiet
 docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-timeout 120 postgres
+bash dev/postgres_prepare.sh
 ```
 
 Pour reconstruire et démarrer **les trois services**, puis les vérifier depuis Ubuntu :
@@ -259,9 +268,13 @@ python3 dev/compose_smoke.py
 docker compose -f compose.yaml -f compose.postgres.yaml exec -T postgres sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT current_database(), version();"'
 ```
 
-Les trois services doivent être `healthy`. Le smoke test demande le mot de passe du **simulateur** et vérifie l’authentification HTTP ; la dernière commande vérifie PostgreSQL séparément. Elle doit afficher la base configurée (`auditions` par défaut) et PostgreSQL 18.6. L’API n’utilise pas encore cette base et aucune table métier n’est attendue. Utiliser les deux fichiers Compose pour afficher les trois services ; `docker compose ps` seul concerne la configuration de base.
+Les trois services doivent être `healthy`. Le smoke test demande le mot de passe du **simulateur** et vérifie l’authentification HTTP ; la dernière commande vérifie PostgreSQL séparément. Elle doit afficher la base configurée (`auditions` par défaut) et PostgreSQL 18.6. La table `auditions.hearing_type` et l’historique Flyway sont créés au démarrage de l’API. La liste des types est initialement vide, sans donnée métier inventée. Utiliser les deux fichiers Compose pour afficher les trois services ; `docker compose ps` seul concerne la configuration de base.
 
 Le [guide PostgreSQL](docs/deployment/postgresql.md) explique le volume persistant, les vérifications SQL, les sauvegardes et la restauration dans une base de contrôle. Ne pas supprimer les volumes lors des mises à jour ; modifier le mot de passe dans `.env` ne le change pas dans une base déjà initialisée.
+
+Le script de préparation fonctionne aussi sur une base déjà initialisée : il crée les comptes dédiés et réapplique leurs mots de passe depuis la configuration. Il n’efface aucune donnée. La migration s’exécute ensuite avec `auditions_migrator` ; les requêtes de l’API utilisent `auditions_app`, sans droits d’administration. Ne pas démarrer l’API raccordée avant cette préparation. Voir le [guide PostgreSQL](docs/deployment/postgresql.md) pour la reprise et les limites de ce laboratoire.
+
+Pour tester la consultation/création/modification depuis Windows avec le tunnel existant, suivre le [parcours PowerShell](docs/api/hearing-types.md#test-depuis-windows). Il n’y a toujours pas d’écran Angular.
 
 ### Sauvegarde manuelle horodatée
 
@@ -274,3 +287,4 @@ bash dev/postgres_backup.sh "backups/auditions-$(date -u +%Y-%m-%d_%H-%M-%SZ).du
 La date et l’heure **UTC** sont calculées au moment de l’exécution, à la seconde près. Le suffixe `Z` indique UTC ; le nom suit par exemple la forme `auditions-2026-11-03_14-30-05Z.dump`. Deux lancements dans la même seconde peuvent produire le même nom : le script refuse alors d’écraser l’archive existante.
 
 Cette commande crée une sauvegarde à la demande ; aucune sauvegarde n’est déclenchée automatiquement à l’arrêt de la VM ou au redémarrage de Docker. Le script crée le dossier `backups/` si nécessaire. Les archives sont privées et ignorées par Git ; conserver une copie importante hors de la VM, dans un emplacement protégé. Consulter le [guide PostgreSQL](docs/deployment/postgresql.md) pour les limites de la sauvegarde et la vérification d’une restauration.
+
