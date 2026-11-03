@@ -1,0 +1,27 @@
+name: Prepare frontend lockfile
+on:
+  push:
+    branches: [feat/angular-foundation]
+    paths: ['frontend/package.json', '.github/workflows/frontend-lock-bootstrap.yml']
+permissions:
+  contents: read
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    container: node:24.22.2-bookworm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Resolve the exact initial dependency lock
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Return generated public package metadata
+        working-directory: frontend
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const lock = JSON.stringify(JSON.parse(fs.readFileSync('package-lock.json', 'utf8')));
+          for (let i = 0; i < lock.length; i += 12000) console.log('LOCK_CHUNK ' + lock.slice(i, i + 12000));
+          NODE
