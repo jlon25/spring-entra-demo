@@ -4,7 +4,7 @@
 
 Première fonctionnalité métier : consulter, créer et modifier des types d’audition. Le profil `postgres` est requis ; le démarrage sans ce profil conserve le socle JWT sans persistance. Aucun écran Angular, suppression, dossier, audition planifiée ou donnée de personne n’est ajouté.
 
-JDBC paramétré suffit à ce référentiel simple ; aucun ORM ou service intermédiaire sans responsabilité supplémentaire. Flyway applique une migration versionnée additive dans le schéma `auditions`. Java 21, Spring Boot 4.0.9 et Maven sont conservés ; les nouvelles dépendances restent gérées par Boot (Flyway 11.14.1, pilote PostgreSQL 42.7.14). PostgreSQL reste en version 18.6.
+JDBC paramétré suffit à ce référentiel simple ; aucun ORM ou service intermédiaire sans responsabilité supplémentaire. Flyway applique les migrations versionnées dans le schéma `auditions`. V1 crée la table ; V2 assouplit la contrainte de pause pour accepter zéro sans modifier V1 ni les données. Java 21, Spring Boot 4.0.9 et Maven sont conservés ; les nouvelles dépendances restent gérées par Boot (Flyway 11.14.1, pilote PostgreSQL 42.7.14). PostgreSQL reste en version 18.6.
 
 Les permissions `hearing-types.read` et `hearing-types.write` ont été validées par le métier. Le compte local simulé reçoit explicitement les deux, plus `api.read`. Un droit d’écriture n’implique pas la lecture ; `api.read` seul n’accorde aucun accès au référentiel. Les rôles métier des intervenants ne déterminent pas ces permissions. L’attribution réelle des droits Entra reste à définir.
 
@@ -23,7 +23,7 @@ Création, exemple entièrement fictif :
 {"label":"Type de test","durationMinutes":60,"pauseMinutes":15,"defenderRequired":true}
 ```
 
-Le libellé est obligatoire, normalisé par suppression des espaces de bord (`String.strip`), au maximum 120 unités UTF-16 après normalisation. Pas d’unicité imposée au libellé. Durée et pause sont des nombres JSON entiers strictement positifs, représentables par un entier Java 32 bits. Aucune durée ou pause métier par défaut n’est inventée. `defenderRequired` est un booléen obligatoire ; `false` signifie non requis. Les champs inconnus sont refusés ; les nombres décimaux ne sont pas tronqués et les chaînes ne remplacent pas des nombres/booléens.
+Le libellé est obligatoire, normalisé par suppression des espaces de bord (`String.strip`), au maximum 120 unités UTF-16 après normalisation. Pas d’unicité imposée au libellé. Durée et pause sont des nombres JSON entiers représentables par un entier Java 32 bits : durée strictement positive, pause positive ou nulle. Une pause de zéro minute signifie qu’aucun temps de pause supplémentaire n’est imposé par ce type. Aucune durée ou pause métier par défaut n’est inventée. `defenderRequired` est un booléen obligatoire ; `false` signifie non requis. Les champs inconnus sont refusés ; les nombres décimaux ne sont pas tronqués et les chaînes ne remplacent pas des nombres/booléens.
 
 La réponse contient ces champs, `id` (UUID généré par le backend) et `version` (entier 64 bits, initialement zéro). Une modification remplace tous les champs éditables et exige la version précédemment lue, obligatoire et positive ou nulle. Le backend incrémente la version. Une mise à jour SQL unique conditionnée par l’identifiant et la version empêche l’écrasement concurrent ; le perdant reçoit `409` et doit recharger. Cela ne résout pas les futures réservations d’auditions.
 

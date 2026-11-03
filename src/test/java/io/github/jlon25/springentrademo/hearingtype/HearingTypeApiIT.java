@@ -140,6 +140,29 @@ class HearingTypeApiIT {
     }
 
     @Test
+    void zeroPauseIsAcceptedOnCreationAndUpdateAndPersisted() throws Exception {
+        Map<String, Object> payload = validPayload("Fictitious-zero-pause-" + UUID.randomUUID());
+        payload.put("pauseMinutes", 0);
+        HttpResponse<String> response = request("POST", PATH, payload, token(WRITE));
+        assertThat(response.statusCode()).isEqualTo(201);
+        Map<?, ?> created = object(response);
+        String path = PATH + "/" + created.get("id");
+        assertThat(number(created, "pauseMinutes")).isZero();
+        payload.put("version", 0);
+        assertThat(request("PUT", path, payload, token(WRITE)).statusCode()).isEqualTo(200);
+        assertThat(number(object(request("GET", path, null, token(READ))), "pauseMinutes")).isZero();
+        try (Connection connection = appConnection();
+                var statement = connection.prepareStatement(
+                        "SELECT pause_minutes FROM auditions.hearing_type WHERE id = ?")) {
+            statement.setObject(1, UUID.fromString(created.get("id").toString()));
+            try (var rows = statement.executeQuery()) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getInt(1)).isZero();
+            }
+        }
+    }
+
+    @Test
     void realBearerAuthenticationAndDistinctScopesAreEnforced() throws Exception {
         assertThat(request("GET", PATH, null, null).statusCode()).isEqualTo(401);
         assertThat(request("POST", PATH, validPayload("Fictitious"), null).statusCode()).isEqualTo(401);
@@ -205,7 +228,8 @@ class HearingTypeApiIT {
             invalid.add(payload);
         }
         for (String field : List.of("durationMinutes", "pauseMinutes")) {
-            for (Object value : List.of(0, -1, 1.5, 2147483648L)) {
+            for (Object value : field.equals("durationMinutes")
+                    ? List.of(0, -1, 1.5, 2147483648L) : List.of(-1, 1.5, 2147483648L)) {
                 Map<String, Object> payload = validPayload("Fictitious-validation");
                 payload.put(field, value);
                 invalid.add(payload);
@@ -234,7 +258,7 @@ class HearingTypeApiIT {
         payload.put("version", null);
         assertProblem(request("PUT", path, payload, token(WRITE)), 400);
         payload.put("version", 0);
-        payload.put("pauseMinutes", 0);
+        payload.put("pauseMinutes", -1);
         assertProblem(request("PUT", path, payload, token(WRITE)), 400);
         assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(created);
     }
@@ -303,7 +327,6 @@ class HearingTypeApiIT {
                     new Object[] {"   ", 60, 15, true, 0L},
                     new Object[] {"Fictitious", 0, 15, true, 0L},
                     new Object[] {"Fictitious", -1, 15, true, 0L},
-                    new Object[] {"Fictitious", 60, 0, true, 0L},
                     new Object[] {"Fictitious", 60, -1, true, 0L},
                     new Object[] {"Fictitious", 60, 15, true, -1L})) {
                 assertSqlInsertRejected(connection, values, "23514");
@@ -319,9 +342,9 @@ class HearingTypeApiIT {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (Connection connection = migratorConnection(); var statement = connection.createStatement();
                 var rows = statement.executeQuery(
-                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version = '1' AND success")) {
+                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version IN ('1', '2') AND success")) {
             assertThat(rows.next()).isTrue();
-            assertThat(rows.getInt(1)).isEqualTo(1);
+            assertThat(rows.getInt(1)).isEqualTo(2);
         }
     }
 

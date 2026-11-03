@@ -21,7 +21,7 @@ L’audition est le besoin à organiser. Pour un lieu d’audition renseigné, s
 | Compétence d’interprétation | Langue et niveau de maîtrise par interprète, complétés par les combinaisons de traduction qu’il peut assurer vers la langue de base. Parler deux langues ne prouve pas à lui seul la compétence de traduction. |
 | Disponibilité | Intervalle fourni par un intervenant ; à confronter aux auditions déjà confirmées et à la pause minimale. La collecte et le fuseau des disponibilités restent à préciser. |
 | Lieu | Localisation de l’audition permettant la comparaison géographique des interprètes. Aucune réservation de salle n’est présumée. |
-| Paramètres de planification | Durées et pauses minimales par type, administrables ; la pause est obligatoire pour chaque intervenant. |
+| Paramètres de planification | Durées et pauses minimales par type, administrables ; la pause configurée, éventuellement nulle, s’applique à chaque intervenant. |
 | Proposition | Créneau et affectations possibles, avec critères appliqués, avertissements et alternatives. Elle ne réserve rien. |
 | Audition confirmée et affectations | Résultat de la validation finale du backend, avec un intervenant pour chaque rôle requis et les paramètres utilisés. |
 
@@ -39,8 +39,8 @@ Les comptes de connexion, permissions applicatives et rôles métier sont des no
 | C4 | Si un interprète est requis, sa combinaison linguistique doit couvrir la langue de la personne et la langue de base de l’audition. | Combinaison compatible et, lorsqu’un seuil est défini pour le besoin, niveaux par langue suffisants. Aucun seuil ou équivalence ne doit être inventé. |
 | C5 | Les besoins particuliers applicables doivent être respectés. | Besoin explicite et portée identifiée ; si une disposition indispensable n’est pas définie, signaler l’information manquante au lieu d’annoncer une proposition conforme. |
 | C6 | Chaque intervenant doit être disponible pendant l’audition, sans chevauchement avec une audition confirmée. | Contrôle des disponibilités et affectations actuelles pour chacun. |
-| C7 | Une pause minimale obligatoire sépare deux auditions pour chaque intervenant. | Pour deux auditions successives d’un même intervenant, début suivant ≥ fin précédente + pause applicable ; vérifier les deux côtés du créneau proposé. |
-| C8 | La durée dépend du type et les durées/pauses sont configurables dans l’administration. | Durée et pause minimale positives, selon les règles de configuration à préciser ; aucun changement administratif ne déplace silencieusement une audition planifiée. |
+| C7 | Une pause minimale configurable, positive ou nulle, sépare deux auditions pour chaque intervenant. | Pour deux auditions successives d’un même intervenant, début suivant ≥ fin précédente + pause applicable ; vérifier les deux côtés du créneau proposé. |
+| C8 | La durée dépend du type et les durées/pauses sont configurables dans l’administration. | Durée strictement positive et pause minimale positive ou nulle ; aucun changement administratif ne déplace silencieusement une audition planifiée. |
 | C9 | Une proposition n’effectue aucune réservation provisoire. | Plusieurs propositions peuvent concerner les mêmes ressources ; leur affichage ne garantit pas leur disponibilité future. |
 | C10 | La confirmation est décidée par le backend sur les données actuelles. | Vérifications et enregistrement empêchent atomiquement deux confirmations incompatibles ; le contrôle Angular seul ne suffit jamais. |
 
@@ -52,7 +52,7 @@ Le genre ou le statut de mineur ne déclenchent pas automatiquement des restrict
 | --- | --- | --- |
 | P1 | Proposer en priorité le défenseur habituel du dossier lorsqu’un défenseur est requis et qu’il est éligible/disponible. | Cette continuité n’est jamais un blocage absolu. Son indisponibilité est signalée et un autre défenseur éligible peut être sélectionné. |
 | P2 | Un remplacement du défenseur est ponctuel par défaut. | Il ne modifie pas le défenseur habituel du dossier. Une action explicite permet de changer aussi cette référence durable. Le premier rattachement durable doit être explicite. |
-| P3 | Favoriser les interprètes les plus proches du lieu de l’audition parmi ceux qui satisfont les contraintes. | Réduire potentiellement temps d’engagement, transport et nuitées. La proximité ne permet pas d’écarter une exigence linguistique ou une pause obligatoire. |
+| P3 | Favoriser les interprètes les plus proches du lieu de l’audition parmi ceux qui satisfont les contraintes. | Réduire potentiellement temps d’engagement, transport et nuitées. La proximité ne permet pas d’écarter une exigence linguistique ou la pause configurée. |
 | P4 | Utiliser le tirage aléatoire entre candidats ou combinaisons admissibles de même priorité. | Chercher une affectation complète réalisable avant le départage ; ne pas choisir isolément une personne qui rendrait les autres rôles impossibles. Le hasard ne constitue pas une garantie d’équité de charge. |
 
 La méthode exacte de proximité, les niveaux de priorité et l’ordre de comparaison entre deux propositions ayant des créneaux différents restent à définir. Le coût réel n’est pas assimilé à une distance : tarifs, durée de trajet et nécessité de nuitée ne sont pas encore modélisés. Si un déplacement rend un créneau irréalisable, il devra devenir une contrainte explicite une fois ses règles définies.

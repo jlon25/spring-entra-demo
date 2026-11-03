@@ -10,7 +10,7 @@ La livraison se fera par petites PR, chacune avec un périmètre, des vérificat
 
 - Chaque type d’audition détermine une durée ; les valeurs sont configurables par une zone d’administration.
 - Le type porte une règle de défenseur à deux valeurs : « requis » ou « non requis » ; la continuité du défenseur reste une préférence par dossier, avec remplacement possible.
-- Une pause minimale positive entre deux auditions est obligatoire pour tous les intervenants ; sa valeur est propre à chaque type d’audition.
+- Une pause minimale positive ou nulle est configurée entre deux auditions pour tous les intervenants ; sa valeur est propre à chaque type d’audition.
 - Les droits applicatifs sont distincts des rôles métier des intervenants.
 - Les futures propositions ne réservent rien ; seul le backend peut confirmer une audition après une vérification atomique.
 - PostgreSQL est la cible privilégiée pour les données durables ; Angular est retenu pour le frontend séparé.
@@ -25,7 +25,7 @@ Pour cette première tranche, proposer un référentiel simple de types avec :
 | Libellé | Texte obligatoire après suppression des espaces de bord ; maximum 120 unités UTF-16 après normalisation, fixé dans le contrat API |
 | Durée | Nombre entier strictement positif exprimé en minutes ; aucune valeur métier par défaut inventée |
 | Règle de défenseur | Deux valeurs explicites : « requis » ou « non requis », sans troisième valeur facultative |
-| Pause minimale | Nombre entier strictement positif en minutes, propre à ce type et applicable à tous les intervenants |
+| Pause minimale | Nombre entier positif ou nul en minutes, propre à ce type et applicable à tous les intervenants |
 | Version de modification | Permettre de détecter une mise à jour concurrente au lieu d’écraser silencieusement une modification |
 
 La pause est administrable par type, conformément à la décision métier. Aucune valeur chiffrée de durée ou de pause ne sera ajoutée comme donnée réelle sans décision métier. Les exemples et fixtures seront explicitement fictifs.
@@ -68,7 +68,7 @@ Ces scénarios sont à implémenter et ne constituent pas des tests exécutés :
 
 - **Création valide** : un utilisateur autorisé renseigne un libellé, une durée positive et une règle de défenseur ; le type est enregistré et reste disponible après redémarrage.
 - **Validation** : une durée nulle, négative ou non entière, ou un libellé vide, est refusée sans enregistrement partiel.
-- **Pause obligatoire** : une pause nulle ou négative est refusée ; deux types peuvent avoir des pauses différentes et la transition suit la règle explicitement retenue.
+- **Pause configurable** : zéro est accepté ; une pause négative est refusée ; deux types peuvent avoir des pauses différentes et la transition suit la règle explicitement retenue.
 - **Droits** : sans authentification, l’accès protégé est refusé ; avec un droit de consultation seulement, une modification reste refusée côté backend.
 - **Modification concurrente** : deux éditions partent de la même version ; après le premier enregistrement, le second ne l’écrase pas silencieusement et peut recharger les données.
 - **Restauration** : une sauvegarde de test est restaurée dans une cible isolée et les données attendues sont effectivement relues.

@@ -70,7 +70,7 @@ public class HearingTypeController {
     public record CreateRequest(
             @NotBlank @Size(max = 120) String label,
             @NotNull @Positive Integer durationMinutes,
-            @NotNull @Positive Integer pauseMinutes,
+            @NotNull @PositiveOrZero Integer pauseMinutes,
             @NotNull Boolean defenderRequired) {
 
         public CreateRequest {
@@ -81,7 +81,7 @@ public class HearingTypeController {
     public record UpdateRequest(
             @NotBlank @Size(max = 120) String label,
             @NotNull @Positive Integer durationMinutes,
-            @NotNull @Positive Integer pauseMinutes,
+            @NotNull @PositiveOrZero Integer pauseMinutes,
             @NotNull Boolean defenderRequired,
             @NotNull @PositiveOrZero Long version) {
 
