@@ -39,6 +39,12 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/public/ping").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/message").hasAuthority("SCOPE_api.read")
+                        .requestMatchers(HttpMethod.GET, "/api/hearing-types", "/api/hearing-types/{id}")
+                        .hasAuthority("SCOPE_hearing-types.read")
+                        .requestMatchers(HttpMethod.POST, "/api/hearing-types")
+                        .hasAuthority("SCOPE_hearing-types.write")
+                        .requestMatchers(HttpMethod.PUT, "/api/hearing-types/{id}")
+                        .hasAuthority("SCOPE_hearing-types.write")
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
                 .build();

@@ -85,6 +85,8 @@ def verify_stack(api_base, identity_base, username, password):
     password = None
     if not isinstance(token_response, dict) or token_response.get("token_type") != "Bearer":
         raise RuntimeError("Identity provider must return a Bearer token")
+    if token_response.get("scope") != "api.read hearing-types.read hearing-types.write":
+        raise RuntimeError("Identity provider returned unexpected development permissions")
     bearer = token_response.get("access_token")
     if not isinstance(bearer, str) or not bearer:
         raise RuntimeError("Identity provider returned no access token")

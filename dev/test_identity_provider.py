@@ -94,7 +94,7 @@ class IdentityProviderTest(unittest.TestCase):
             response = identity.token_response(subject=TEST_CREDENTIALS[0])
             payload = json.loads(decode(response["access_token"].split(".")[1]))
             self.assertEqual(payload["sub"], TEST_CREDENTIALS[0])
-            self.assertEqual(payload["scope"], "api.read")
+            self.assertEqual(payload["scope"], "api.read hearing-types.read hearing-types.write")
 
     def test_loopback_http_login_and_input_validation(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -131,9 +131,10 @@ class IdentityProviderTest(unittest.TestCase):
                     _, token = request("/token", 200, credentials)
                     self.assertEqual(token["token_type"], "Bearer")
                     self.assertEqual(token["expires_in"], 300)
+                    self.assertEqual(token["scope"], "api.read hearing-types.read hearing-types.write")
                     claims = json.loads(decode(token["access_token"].split(".")[1]))
                     self.assertEqual(claims["sub"], TEST_CREDENTIALS[0])
-                    self.assertEqual(claims["scope"], "api.read")
+                    self.assertEqual(claims["scope"], "api.read hearing-types.read hearing-types.write")
                     bad_cases = ({"username": "unknown", "password": TEST_CREDENTIALS[1]},
                                  {"username": TEST_CREDENTIALS[0], "password": "incorrect"})
                     for bad in bad_cases:
@@ -171,7 +172,8 @@ class IdentityProviderTest(unittest.TestCase):
             payload = json.loads(decode(claims))
             self.assertEqual(payload["iss"], "http://localhost:9000")
             self.assertEqual(payload["aud"], "spring-entra-demo")
-            self.assertEqual(payload["scope"], "api.read")
+            self.assertEqual(payload["scope"], "api.read hearing-types.read hearing-types.write")
+            self.assertEqual(response["scope"], payload["scope"])
             self.assertEqual(payload["exp"] - payload["iat"], 300)
             self.assertEqual(set(identity.jwk), {"kty", "use", "alg", "kid", "n", "e"})
             self.assertEqual(int.from_bytes(decode(identity.jwk["e"]), "big"), 65537)
