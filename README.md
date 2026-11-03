@@ -171,3 +171,15 @@ docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-time
 ```
 
 Le [guide PostgreSQL](docs/deployment/postgresql.md) explique le volume persistant, les vérifications SQL, les sauvegardes et la restauration dans une base de contrôle. Ne pas supprimer les volumes lors des mises à jour ; modifier le mot de passe dans `.env` ne le change pas dans une base déjà initialisée.
+
+### Sauvegarde manuelle horodatée
+
+Depuis le dossier du projet sur la VM Ubuntu, avec PostgreSQL démarré :
+
+```sh
+bash dev/postgres_backup.sh "backups/auditions-$(date -u +%Y-%m-%d_%H-%M-%SZ).dump"
+```
+
+La date et l’heure **UTC** sont calculées au moment de l’exécution, à la seconde près. Le suffixe `Z` indique UTC ; le nom suit par exemple la forme `auditions-2026-11-03_14-30-05Z.dump`. Deux lancements dans la même seconde peuvent produire le même nom : le script refuse alors d’écraser l’archive existante.
+
+Cette commande crée une sauvegarde à la demande ; aucune sauvegarde n’est déclenchée automatiquement à l’arrêt de la VM ou au redémarrage de Docker. Le script crée le dossier `backups/` si nécessaire. Les archives sont privées et ignorées par Git ; conserver une copie importante hors de la VM, dans un emplacement protégé. Consulter le [guide PostgreSQL](docs/deployment/postgresql.md) pour les limites de la sauvegarde et la vérification d’une restauration.
