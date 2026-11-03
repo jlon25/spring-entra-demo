@@ -12,9 +12,9 @@ Java 21, Spring Boot 4.0.9 / Spring Security 7.0.8 (versions gérées par Boot),
 
 Sous Windows utiliser `mvnw.cmd`. Le premier build nécessite Maven Central. La CI exécute la même commande. Les tests démarrent une API HTTP et un serveur JWKS locaux, génèrent des clés RSA éphémères et envoient de vrais JWT signés au vrai décodeur. Aucun mock d’authentification ni contact Microsoft.
 
-## Développement local
+## Développement local sans Docker
 
-Le simulateur nécessite Python 3 et OpenSSL dans le PATH. Premier terminal :
+Cette section lance les processus directement sur la machine. Ne pas les lancer en même temps que Compose sur les mêmes ports. Depuis le dossier du projet, le simulateur nécessite Python 3 et OpenSSL dans le PATH. Premier terminal :
 
 ```sh
 export DEV_IDENTITY_USERNAME=local-user
@@ -39,7 +39,7 @@ Depuis un autre terminal, le test interactif demande le mot de passe sans l’af
 python3 dev/compose_smoke.py
 ```
 
-Le script utilise les ports par défaut et `local-user`. Pour un autre compte, exporter `DEV_IDENTITY_USERNAME`. En CI seulement, le mot de passe est fourni par variable d’environnement éphémère ; en terminal il est demandé si cette variable n’est pas définie.
+Le script utilise les ports par défaut et `local-user`. Pour un autre compte, exporter `DEV_IDENTITY_USERNAME`. La CI fournit un mot de passe éphémère par variable d’environnement ; en terminal il est demandé si cette variable n’est pas définie. Le script ne charge pas `.env` : pour un utilisateur autre que `local-user`, exporter `DEV_IDENTITY_USERNAME` dans le terminal de test.
 
 Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in: 300` et `scope: api.read`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
 
@@ -76,12 +76,13 @@ Lire [AGENTS.md](AGENTS.md) et les fiches avant contribution. Ne pas fusionner n
 
 ## Docker Compose et VM Hyper-V
 
-Deux services sont fournis : l’API et le simulateur local JWKS. Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
+Le Compose de base démarre deux services : l’API et le simulateur local JWKS. PostgreSQL est optionnel via un second fichier, voir la section dédiée. Aucun frontend Angular n’est encore disponible. Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
 
 ```sh
-cp .env.example .env  # première installation seulement
+test -f .env || cp .env.example .env  # conserve le fichier existant
 chmod 600 .env
 nano .env  # renseigner DEV_IDENTITY_PASSWORD avant le démarrage
+docker compose config --quiet
 docker compose up --build --wait --wait-timeout 180
 ```
 
@@ -95,8 +96,8 @@ Depuis le dossier du projet sur la VM, vérifier les conteneurs et l’API :
 
 ```sh
 docker compose ps
-curl -i http://127.0.0.1:8080/public/ping
-curl -i http://127.0.0.1:8080/api/message
+curl --noproxy "*" -i http://127.0.0.1:8080/public/ping
+curl --noproxy "*" -i http://127.0.0.1:8080/api/message
 python3 dev/compose_smoke.py
 ```
 
@@ -108,19 +109,36 @@ Compose smoke check passed: public ping, Bearer rejection, public JWKS, local lo
 
 Le script demande le mot de passe local sans l’afficher et vérifie aussi l’accès protégé avec un vrai JWT signé sans afficher le jeton. Il nécessite Python 3 sur la VM ; les ports ci-dessus correspondent aux valeurs par défaut de Compose.
 
-### Tunnel SSH depuis Windows
+### Vérifier l’IP de la VM puis ouvrir le tunnel depuis Windows
 
-Dans **PowerShell sur Windows**, ouvrir le tunnel vers la VM :
+**1. Dans Ubuntu**, depuis la console Hyper-V (ou une session SSH encore valide), relever les adresses IPv4 :
 
-```powershell
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 -L 127.0.0.1:9000:127.0.0.1:9000 jerome@192.168.1.127
+```sh
+ip -4 -br address show scope global
+ip route get 1.1.1.1
 ```
 
-`jerome@192.168.1.127` correspond à la VM utilisée lors des essais ; adapter le compte et l’adresse si nécessaire. Le nom Hyper-V `ubuntu2604` n’est pas forcément résolu par le DNS Windows. Pour retrouver l’IP dans Ubuntu, utiliser `hostname -I` et identifier l’adresse de la carte réseau de la VM, pas celle d’un réseau Docker.
+La seconde commande consulte la table de routage sans envoyer de requête à `1.1.1.1`. Repérer l’adresse après `src` et l’interface après `dev`, puis les comparer à la carte réseau de la VM affichée par la première commande. Ne pas choisir l’adresse de `docker0` ou d’un bridge `br-…`. Si la VM n’a pas de route par défaut, choisir dans la première commande l’adresse de sa carte reliée au commutateur Hyper-V accessible depuis Windows. `hostname -I` peut aussi lister les adresses, mais inclut parfois celles de Docker.
 
-Saisir le mot de passe SSH lorsqu’il est demandé : aucun caractère ne s’affiche pendant la saisie. Lors d’une première connexion, vérifier l’empreinte de la clé hôte avant de l’accepter. **Garder la fenêtre ouverte** ; l’absence de terminal après authentification est normale avec `-N`. Fermer la fenêtre ou faire `Ctrl+C` coupe le tunnel.
+**2. Dans PowerShell sur Windows**, mettre à jour la variable avec l’IP constatée dans Ubuntu :
 
-Dans une **seconde fenêtre PowerShell**, tester l’accès sans passer par un proxy :
+```powershell
+$VmIp = '192.168.1.46' # dernière IP communiquée ; remplacer si différente dans Ubuntu
+$VmUser = 'jerome'    # adapter le compte Ubuntu si nécessaire
+Test-NetConnection -ComputerName $VmIp -Port 22
+```
+
+`TcpTestSucceeded` doit être `True`. Cela vérifie que le port SSH répond à cette IP, pas l’identité de la machine : vérifier ensuite la clé hôte SSH. Si le test échoue, contrôler l’IP, l’accès réseau Hyper-V et le serveur SSH avant de chercher un problème Docker. Le nom de la VM `ubuntu2604` n’est pas nécessairement résolu par le DNS Windows. Une adresse attribuée par DHCP peut changer ; refaire cette vérification après un changement réseau ou un redémarrage.
+
+**3. Dans la même fenêtre PowerShell**, ouvrir le tunnel en réutilisant ces variables :
+
+```powershell
+ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8080:127.0.0.1:8080 -L 127.0.0.1:9000:127.0.0.1:9000 "$VmUser@$VmIp"
+```
+
+Saisir le mot de passe **SSH Ubuntu** lorsqu’il est demandé : aucun caractère ne s’affiche pendant la saisie. Lors d’une première connexion à cette adresse, vérifier l’empreinte de la clé hôte avant de l’accepter. **Garder la fenêtre ouverte après authentification** ; l’absence de terminal est normale avec `-N`. Fermer la fenêtre ou faire `Ctrl+C` coupe le tunnel. Si un tunnel fonctionne déjà sur ces ports, le conserver au lieu d’en ouvrir un second.
+
+**4. Dans une seconde fenêtre PowerShell sur Windows**, tester l’accès sans passer par un proxy :
 
 ```powershell
 curl.exe --noproxy "*" -i http://127.0.0.1:8080/public/ping
@@ -133,22 +151,54 @@ Attendus : `200` pour le ping et `401` pour la route protégée sans jeton. Dans
 http://127.0.0.1:8080/public/ping
 ```
 
-En cas d’échec, vérifier d’abord le ping depuis Ubuntu, puis relancer la commande SSH avec `-v` pour diagnostiquer le tunnel. Ne pas ajouter de trace HTTP contenant un jeton.
+L’adresse `127.0.0.1` du navigateur désigne Windows : avec les ports liés à la boucle locale de la VM, le tunnel doit être ouvert pour que cette URL fonctionne. Le ping affiche du JSON, pas une application graphique. En cas d’échec, vérifier d’abord le ping depuis Ubuntu, puis ajouter `-v` avant `-N` dans la commande SSH pour diagnostiquer le tunnel. Les ports indiqués supposent les valeurs par défaut de `.env` ; si `API_PORT` ou `IDENTITY_PORT` changent, adapter les ports de destination du tunnel et les tests sur Ubuntu. Ne pas ajouter de trace HTTP contenant un jeton.
 
 ### Connexion simulée depuis PowerShell
 
-Après ouverture du tunnel SSH, dans une seconde fenêtre PowerShell :
+Après ouverture du tunnel SSH, procéder en **deux étapes séparées** dans la seconde fenêtre PowerShell. D’abord exécuter cette commande seule et terminer la saisie :
 
 ```powershell
 $credential = Get-Credential -UserName 'local-user' -Message 'Compte du simulateur local'
-try {
-    $body = @{ username = $credential.UserName; password = $credential.GetNetworkCredential().Password } | ConvertTo-Json
-    $login = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:9000/token' -ContentType 'application/json' -Body $body
-    Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/message' -Headers @{ Authorization = "Bearer $($login.access_token)" }
-} finally {
-    Remove-Variable credential, body, login -ErrorAction SilentlyContinue
+```
+
+Adapter `local-user` si `DEV_IDENTITY_USERNAME` a été changé. Ensuite coller le bloc complet, y compris l’enveloppe `& { ... }`, pour empêcher l’exécution prématurée de `try/catch` avant son `finally` :
+
+```powershell
+& {
+    try {
+        $body = @{
+            username = $credential.UserName
+            password = $credential.GetNetworkCredential().Password
+        } | ConvertTo-Json
+
+        $login = Invoke-RestMethod `
+            -Method Post `
+            -Uri 'http://127.0.0.1:9000/token' `
+            -ContentType 'application/json; charset=utf-8' `
+            -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
+            -ErrorAction Stop
+
+        Invoke-RestMethod `
+            -Uri 'http://127.0.0.1:8080/api/message' `
+            -Headers @{ Authorization = "Bearer $($login.access_token)" } `
+            -ErrorAction Stop
+    }
+    catch {
+        if ($null -ne $_.Exception.Response) {
+            Write-Host "Requête refusée : HTTP $([int]$_.Exception.Response.StatusCode)"
+        }
+        else {
+            Write-Host "Échec de la requête sans réponse HTTP : vérifier le tunnel et les services."
+        }
+    }
+    finally {
+        Remove-Variable body, login -ErrorAction SilentlyContinue
+        Remove-Variable credential -Scope 1 -ErrorAction SilentlyContinue
+    }
 }
 ```
+
+Avec un mauvais mot de passe, la réponse attendue est `Requête refusée : HTTP 401`, sans appel à la route protégée. Recommencer depuis `Get-Credential` pour un nouvel essai.
 
 Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La réponse attendue contient `message: authenticated`. Ne pas afficher `$body` ou `$login`, ni activer de traces HTTP/transcription : ils contiennent des données sensibles. Le navigateur seul ne fournit pas de Bearer à `/api/message` ; une connexion par formulaire nécessiterait une interface cliente, hors périmètre actuel. Garder les échanges dans le tunnel SSH ou utiliser HTTPS au-delà du laboratoire.
 
@@ -164,11 +214,23 @@ Le [découpage de la première tranche](docs/domain/first-slice-hearing-types.md
 
 PostgreSQL est disponible séparément pour préparer la persistance. L’API n’y est pas encore raccordée. Le lancement Compose actuel reste inchangé.
 
-Pour l’activer, ajouter `POSTGRES_PASSWORD` dans le `.env` existant (voir `.env.example`), puis :
+Pour activer seulement PostgreSQL, ajouter `POSTGRES_PASSWORD` dans le `.env` existant (voir `.env.example`), en conservant les paramètres du simulateur :
 
 ```sh
+docker compose -f compose.yaml -f compose.postgres.yaml config --quiet
 docker compose -f compose.yaml -f compose.postgres.yaml up -d --wait --wait-timeout 120 postgres
 ```
+
+Pour reconstruire et démarrer **les trois services**, puis les vérifier depuis Ubuntu :
+
+```sh
+docker compose -f compose.yaml -f compose.postgres.yaml up --build --wait --wait-timeout 180
+docker compose -f compose.yaml -f compose.postgres.yaml ps
+python3 dev/compose_smoke.py
+docker compose -f compose.yaml -f compose.postgres.yaml exec -T postgres sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT current_database(), version();"'
+```
+
+Les trois services doivent être `healthy`. Le smoke test demande le mot de passe du **simulateur** et vérifie l’authentification HTTP ; la dernière commande vérifie PostgreSQL séparément. Elle doit afficher la base configurée (`auditions` par défaut) et PostgreSQL 18.6. L’API n’utilise pas encore cette base et aucune table métier n’est attendue. Utiliser les deux fichiers Compose pour afficher les trois services ; `docker compose ps` seul concerne la configuration de base.
 
 Le [guide PostgreSQL](docs/deployment/postgresql.md) explique le volume persistant, les vérifications SQL, les sauvegardes et la restauration dans une base de contrôle. Ne pas supprimer les volumes lors des mises à jour ; modifier le mot de passe dans `.env` ne le change pas dans une base déjà initialisée.
 
