@@ -73,4 +73,3 @@ public class SecurityConfiguration {
         return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", message, null));
     }
 }
-

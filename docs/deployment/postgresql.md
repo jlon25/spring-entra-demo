@@ -121,4 +121,3 @@ Le dump n’inclut pas les rôles globaux. La restauration de contrôle avec `--
 - [Image officielle PostgreSQL](https://hub.docker.com/_/postgres) : tag, layout18, variables d’initialisation et persistance.
 - [pg_dump PostgreSQL18](https://www.postgresql.org/docs/18/app-pgdump.html) : archive custom et périmètre d’une base.
 - [pg_restore PostgreSQL18](https://www.postgresql.org/docs/18/app-pgrestore.html) : restauration et droits.
-

@@ -79,4 +79,3 @@ Ces scénarios sont à implémenter et ne constituent pas des tests exécutés :
 L’architecte prépare les contrats ; Bases de données conçoit stockage et migrations avec Spring ; Identité précise les permissions ; Angular est garant du frontend ; Infrastructure prend en charge les services/volumes ; GitHub/CI et Tests apportent les preuves adaptées. Les périmètres de fichiers sont attribués par l’agent principal et chaque contribution reçoit une revue indépendante.
 
 Le moteur de propositions, les dossiers/personnes, les compétences linguistiques, les disponibilités, les imports/exports et Entra restent des étapes ultérieures. Le cadrage initial était documentaire ; l’API et les migrations ont été ajoutées dans la tranche suivante, sans accès automatique à la VM. Une petite PR facilite la revue et le revert du code, mais ne rend pas automatiquement réversible une transformation de données : vérifier ce point à chaque migration.
-
