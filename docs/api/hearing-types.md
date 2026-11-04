@@ -49,7 +49,7 @@ Dans une deuxième fenêtre PowerShell, exécuter d’abord cette commande seule
 $credential = Get-Credential -UserName 'local-user' -Message 'Compte du simulateur local'
 ```
 
-Adapter le nom si nécessaire. Coller ensuite ce bloc complet :
+Adapter le nom si nécessaire. Refaire cette saisie avant chaque essai : le bloc supprime `$credential` dans son `finally`. Le script transmet directement le JSON avec le charset UTF-8, sans appel à `Encoding.GetBytes`, bloqué sur le poste Windows testé en mode `ConstrainedLanguage`. La vérification des identifiants via `GetNetworkCredential()` a fonctionné sur ce poste ; cela ne garantit pas la compatibilité avec toutes les politiques PowerShell. Coller ensuite ce bloc complet :
 
 ```powershell
 & {
@@ -60,7 +60,7 @@ Adapter le nom si nécessaire. Coller ensuite ce bloc complet :
         } | ConvertTo-Json
         $login = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:9000/token' `
             -ContentType 'application/json; charset=utf-8' `
-            -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -ErrorAction Stop
+            -Body $body -ErrorAction Stop
         $headers = @{ Authorization = "Bearer $($login.access_token)" }
         $uri = 'http://127.0.0.1:8080/api/hearing-types'
         Invoke-RestMethod -Uri $uri -Headers $headers -ErrorAction Stop
@@ -68,19 +68,19 @@ Adapter le nom si nécessaire. Coller ensuite ce bloc complet :
         $sample = @{
             label = 'Type fictif - ' + (Get-Date -Format 'yyyyMMdd-HHmmss')
             durationMinutes = 60
-            pauseMinutes = 15
+            pauseMinutes = 0
             defenderRequired = $true
         }
         $created = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers `
             -ContentType 'application/json; charset=utf-8' `
-            -Body ([System.Text.Encoding]::UTF8.GetBytes(($sample | ConvertTo-Json))) -ErrorAction Stop
+            -Body ($sample | ConvertTo-Json) -ErrorAction Stop
         $created
 
         $sample.durationMinutes = 75
         $sample.version = $created.version
         Invoke-RestMethod -Method Put -Uri "$uri/$($created.id)" -Headers $headers `
             -ContentType 'application/json; charset=utf-8' `
-            -Body ([System.Text.Encoding]::UTF8.GetBytes(($sample | ConvertTo-Json))) -ErrorAction Stop
+            -Body ($sample | ConvertTo-Json) -ErrorAction Stop
         Invoke-RestMethod -Uri "$uri/$($created.id)" -Headers $headers -ErrorAction Stop
     }
     catch {
@@ -88,7 +88,10 @@ Adapter le nom si nécessaire. Coller ensuite ce bloc complet :
             Write-Host "Requête refusée : HTTP $([int]$_.Exception.Response.StatusCode)"
         }
         else {
-            Write-Host 'Échec sans réponse HTTP : vérifier le tunnel et les services.'
+            Write-Host 'Erreur initiale :'
+            Write-Host $_.Exception.Message
+            Write-Host $_.FullyQualifiedErrorId
+            Write-Host $_.InvocationInfo.PositionMessage
         }
     }
     finally {
@@ -98,7 +101,7 @@ Adapter le nom si nécessaire. Coller ensuite ce bloc complet :
 }
 ```
 
-Attendu : consultation, type créé en version 0, puis durée fictive 75 et version 1. Ne pas afficher `$body`, `$login` ou `$headers`, ni activer les traces HTTP. La création n’est pas annulée si une étape suivante échoue ; la suppression n’est pas disponible dans cette tranche.
+Attendu : consultation, type créé avec une pause de zéro minute en version 0, puis durée fictive 75, pause toujours nulle et version 1. La consultation initiale peut afficher les types fictifs créés lors d’essais précédents. Ne pas afficher `$body`, `$login` ou `$headers`, ni activer les traces HTTP. La création n’est pas annulée si une étape suivante échoue ; la suppression n’est pas disponible dans cette tranche.
 
 Le navigateur seul ne fournit pas de Bearer : l’écran Angular de connexion et de configuration sera une étape suivante.
 
