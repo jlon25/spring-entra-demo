@@ -1,6 +1,6 @@
 # spring-entra-demo
 
-API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend ; la connexion locale simulée se fait via HTTP. Le profil optionnel `postgres` raccorde l’API à PostgreSQL et expose le référentiel des types d’audition. Microsoft Entra sera intégré ultérieurement.
+API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Le frontend Angular séparé propose une connexion locale et un accueil de vérification API. Le profil optionnel `postgres` raccorde l’API à PostgreSQL et expose le référentiel des types d’audition. Microsoft Entra sera intégré ultérieurement.
 
 ## Prérequis et vérifications
 
@@ -78,7 +78,7 @@ Lire [AGENTS.md](AGENTS.md) et les fiches avant contribution. Ne pas fusionner n
 
 ## Docker Compose et VM Hyper-V
 
-Le Compose de base démarre deux services : l’API et le simulateur local JWKS. PostgreSQL est optionnel via un second fichier, voir la section dédiée. Aucun frontend Angular n’est encore disponible. Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
+Le Compose de base démarre deux services : l’API et le simulateur local JWKS. PostgreSQL est optionnel via un second fichier, voir la section dédiée. Le frontend Angular est optionnel via `compose.frontend.yaml` ; voir le [guide frontend](docs/deployment/frontend.md). Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
 
 ```sh
 test -f .env || cp .env.example .env  # conserve le fichier existant
@@ -237,7 +237,7 @@ Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La r
 
 Le [modèle métier initial](docs/domain/audition-planning.md) décrit les dossiers, auditions, intervenants, disponibilités, préférences et règles de confirmation. Il distingue les règles validées des décisions encore ouvertes et propose les premiers scénarios d’acceptation.
 
-Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). L’API des types et sa persistance sont maintenant implémentées ; Angular et les autres fonctions métier restent à développer.
+Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). L’API des types et sa persistance sont implémentées. Le socle Angular permet la connexion ; son écran de gestion des types et les autres fonctions métier restent à développer.
 
 Le [découpage de la première tranche](docs/domain/first-slice-hearing-types.md) précise les petites PR prévues pour les types d’audition, PostgreSQL et l’interface Angular, ainsi que les décisions métier encore à confirmer.
 
@@ -274,7 +274,7 @@ Le [guide PostgreSQL](docs/deployment/postgresql.md) explique le volume persista
 
 Le script de préparation fonctionne aussi sur une base déjà initialisée : il crée les comptes dédiés et réapplique leurs mots de passe depuis la configuration. Il n’efface aucune donnée. La migration s’exécute ensuite avec `auditions_migrator` ; les requêtes de l’API utilisent `auditions_app`, sans droits d’administration. Ne pas démarrer l’API raccordée avant cette préparation. Voir le [guide PostgreSQL](docs/deployment/postgresql.md) pour la reprise et les limites de ce laboratoire.
 
-Pour tester la consultation/création/modification depuis Windows avec le tunnel existant, suivre le [parcours PowerShell](docs/api/hearing-types.md#test-depuis-windows). Il n’y a toujours pas d’écran Angular.
+Pour tester la consultation/création/modification depuis Windows avec le tunnel existant, suivre le [parcours PowerShell](docs/api/hearing-types.md#test-depuis-windows). Le [socle Angular de connexion](docs/deployment/frontend.md) est disponible ; l’écran des types sera livré ensuite.
 
 ### Sauvegarde manuelle horodatée
 
@@ -287,3 +287,15 @@ bash dev/postgres_backup.sh "backups/auditions-$(date -u +%Y-%m-%d_%H-%M-%SZ).du
 La date et l’heure **UTC** sont calculées au moment de l’exécution, à la seconde près. Le suffixe `Z` indique UTC ; le nom suit par exemple la forme `auditions-2026-11-03_14-30-05Z.dump`. Deux lancements dans la même seconde peuvent produire le même nom : le script refuse alors d’écraser l’archive existante.
 
 Cette commande crée une sauvegarde à la demande ; aucune sauvegarde n’est déclenchée automatiquement à l’arrêt de la VM ou au redémarrage de Docker. Le script crée le dossier `backups/` si nécessaire. Les archives sont privées et ignorées par Git ; conserver une copie importante hors de la VM, dans un emplacement protégé. Consulter le [guide PostgreSQL](docs/deployment/postgresql.md) pour les limites de la sauvegarde et la vérification d’une restauration.
+
+## Frontend Angular : connexion depuis le navigateur
+
+Le [guide frontend](docs/deployment/frontend.md) décrit le lancement, le tunnel SSH avec le port **4200**, les tests navigateur et les commandes npm. Cette première interface permet la connexion locale, l’appel protégé à `/api/message`, l’expiration et la déconnexion. Elle ne gère pas encore les types d’audition.
+
+Avec PostgreSQL déjà préparé :
+
+```sh
+docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up --build --wait --wait-timeout 240
+```
+
+Ouvrir ensuite http://127.0.0.1:4200 après ouverture du tunnel décrit dans le guide. Les tunnels 8080/9000 des sections précédentes restent utiles aux tests HTTP ; pour l’interface, ajouter la redirection 4200. Conserver `.env`, les comptes PostgreSQL et les volumes.

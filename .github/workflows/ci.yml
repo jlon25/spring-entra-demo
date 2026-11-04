@@ -160,3 +160,63 @@ jobs:
           psql -h 127.0.0.1 -U postgres -d auditions -X -v ON_ERROR_STOP=1 -f dev/postgres_prepare.sql
       - name: Verify migrations, API, permissions and concurrent updates on PostgreSQL
         run: ./mvnw --batch-mode --no-transfer-progress -Ppostgres-it verify
+
+  frontend-verify:
+    runs-on: ubuntu-latest
+    container: node:24.22.2-bookworm
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install locked frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build Angular with strict templates
+        run: npm run build
+      - name: Test frontend behavior and Bearer boundaries
+        run: npm test
+
+  frontend-browser:
+    needs: [verify, frontend-verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: ci-frontend
+      API_PORT: '18081'
+      IDENTITY_PORT: '19001'
+      FRONTEND_PORT: '14200'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create ephemeral local login credentials
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          import secrets
+          password = secrets.token_urlsafe(24)
+          print("::add-mask::" + password)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
+              environment.write("DEV_IDENTITY_USERNAME=local-user\n")
+              environment.write("DEV_IDENTITY_PASSWORD=" + password + "\n")
+          PYTHON
+      - name: Validate frontend Compose configuration
+        run: docker compose -f compose.yaml -f compose.frontend.yaml config --quiet
+      - name: Build and start API, identity and frontend
+        run: docker compose -f compose.yaml -f compose.frontend.yaml up --build --wait --wait-timeout 240
+      - name: Exercise Chromium against the real API and local issuer
+        run: |
+          docker run --rm --network host --ipc=host \
+            -e DEV_IDENTITY_USERNAME -e DEV_IDENTITY_PASSWORD \
+            -e FRONTEND_BASE_URL=http://127.0.0.1:14200 \
+            -v "$PWD/frontend:/work" -w /work \
+            mcr.microsoft.com/playwright:v1.58.2-noble \
+            sh -c 'npm ci --no-audit --no-fund && npm run test:e2e'
+      - name: Clean up this disposable CI project
+        if: always()
+        run: docker compose -f compose.yaml -f compose.frontend.yaml down --volumes --remove-orphans

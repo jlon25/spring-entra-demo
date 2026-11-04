@@ -12,3 +12,12 @@ docs
 
 backups
 **/*.dump
+
+# Frontend build artifacts are unrelated to the API image.
+**/node_modules
+**/.angular
+**/dist
+**/out-tsc
+**/coverage
+**/test-results
+**/playwright-report
