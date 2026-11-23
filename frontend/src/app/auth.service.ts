@@ -28,8 +28,8 @@ export class AuthService {
     if (typeof response.access_token !== 'string' || !response.access_token.trim()
         || typeof response.token_type !== 'string'
         || response.token_type.toLowerCase() !== 'bearer'
-        || !Number.isFinite(response.expires_in)
-        || response.expires_in <= 0 || response.expires_in > 300) {
+        || !Number.isSafeInteger(response.expires_in)
+        || response.expires_in <= 0 || response.expires_in * 1000 > 2_147_483_647) {
       throw new Error('Invalid local login response');
     }
     this.logout();

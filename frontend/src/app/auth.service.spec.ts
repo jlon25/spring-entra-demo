@@ -44,6 +44,15 @@ describe('AuthService memory session', () => {
     expect(auth.expired()).toBe(true);
   });
 
+  it('uses a configured lifetime above five minutes without a second frontend setting', () => {
+    auth.startSession({ ...response, expires_in: 1800 });
+    vi.advanceTimersByTime(300_000);
+    expect(auth.accessToken()).toBe(response.access_token);
+    vi.advanceTimersByTime(1_500_000);
+    expect(auth.accessToken()).toBeNull();
+    expect(auth.expired()).toBe(true);
+  });
+
   it('checks expiry when retrieving a token even before a suspended timer runs', () => {
     auth.startSession({ ...response, expires_in: 2 });
     vi.setSystemTime(Date.now() + 3000);
@@ -56,7 +65,11 @@ describe('AuthService memory session', () => {
       { ...response, access_token: '' },
       { ...response, token_type: 'Basic' },
       { ...response, expires_in: 0 },
-      { ...response, expires_in: 301 }
+      { ...response, expires_in: -1 },
+      { ...response, expires_in: 1.5 },
+      { ...response, expires_in: Number.NaN },
+      { ...response, expires_in: Number.POSITIVE_INFINITY },
+      { ...response, expires_in: 2_147_484 }
     ]) {
       expect(() => auth.startSession(invalid)).toThrow('Invalid local login response');
       expect(auth.accessToken()).toBeNull();

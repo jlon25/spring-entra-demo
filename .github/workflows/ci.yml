@@ -38,6 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      DEV_IDENTITY_TOKEN_TTL_SECONDS: '1800'
       COMPOSE_PROJECT_NAME: ci-jwt
       API_PORT: '18080'
       IDENTITY_PORT: '19000'
@@ -185,6 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      DEV_IDENTITY_TOKEN_TTL_SECONDS: '1800'
       COMPOSE_PROJECT_NAME: ci-frontend
       API_PORT: '18081'
       IDENTITY_PORT: '19001'

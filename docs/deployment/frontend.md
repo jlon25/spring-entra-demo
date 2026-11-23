@@ -64,7 +64,7 @@ Ouvrir **http://127.0.0.1:4200** dans le navigateur Windows :
 2. Un mauvais mot de passe affiche un refus et efface le champ du mot de passe.
 3. Avec les bons identifiants, l’accueil s’affiche. Cliquer sur « Vérifier l’accès à l’API » : `authenticated` doit apparaître.
 4. Se déconnecter : retour au formulaire. Recharger après connexion déconnecte également, car le jeton reste en mémoire.
-5. Après cinq minutes, la session locale expire et invite à se reconnecter.
+5. Après la durée configurée par `DEV_IDENTITY_TOKEN_TTL_SECONDS` (cinq minutes par défaut), la session locale expire et invite à se reconnecter.
 
 Ce parcours évite la manipulation d’identifiants dans PowerShell. Ne pas enregistrer de traces réseau ou exporter de HAR contenant mot de passe ou Bearer.
 
@@ -79,6 +79,8 @@ Ce parcours évite la manipulation d’identifiants dans PowerShell. Ne pas enre
 Les appels utilisent la même origine : aucun CORS global ni modification de la validation JWT Spring. Le proxy d’identité n’expose pas ses autres routes. Nginx fonctionne sans root, sans capacités supplémentaires, avec système de fichiers en lecture seule et répertoire temporaire en mémoire.
 
 Le jeton est conservé uniquement en mémoire, sans localStorage, sessionStorage ou cookie. L’interceptor n’ajoute le Bearer qu’à la même origine et au préfixe `/api/`, jamais aux tiers ou à l’identité. Les chemins ambigus sont exclus. Les guards facilitent la navigation ; le backend reste l’autorité d’autorisation.
+
+La durée se configure uniquement côté simulateur via `DEV_IDENTITY_TOKEN_TTL_SECONDS` dans `.env` : entier de 1 à 86400 secondes, 300 par défaut si absent ou vide. Exemple : `DEV_IDENTITY_TOKEN_TTL_SECONDS=1800` pour 30 minutes. Recréer le conteneur identité puis l’API après modification, selon les commandes de la section « Durée des jetons du simulateur » du README, et se reconnecter. Le redémarrage du simulateur change sa clé éphémère ; la recréation de l’API vide son cache JWKS. Les jetons existants ne sont pas prolongés et les anciens jetons ne sont plus utilisables après cette rotation. Lors de la première mise à jour du code, reconstruire les services selon la procédure ci-dessus. En lancement natif, exporter la variable : Python ne lit pas automatiquement `.env`.
 
 Le client utilise `expires_in` pour la durée de session, sans prétendre valider cryptographiquement le JWT. Un `401` API efface la session ; un `403` conserve la session et explique le manque de droits. Pas de refresh automatique, pas de mot de passe conservé dans un service, aucun jeton affiché ou journalisé.
 

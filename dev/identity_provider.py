@@ -22,6 +22,8 @@ from urllib.parse import urlsplit
 
 # Fixed permissions of the one development account; never selected by the client.
 DEV_SCOPES = "api.read hearing-types.read hearing-types.write"
+DEFAULT_TOKEN_TTL_SECONDS = 300
+MAX_TOKEN_TTL_SECONDS = 86400
 
 
 def configuration(environ=None):
@@ -47,6 +49,21 @@ def configuration(environ=None):
         raise ValueError("Development issuer must be an absolute HTTP(S) URL without credentials, query or fragment")
     return host, issuer
 
+
+
+def token_ttl_configuration(environ=None):
+    """Development access-token lifetime in seconds; empty/unset keeps the default."""
+    values = os.environ if environ is None else environ
+    raw = values.get("DEV_IDENTITY_TOKEN_TTL_SECONDS")
+    if raw is None or raw == "":
+        return DEFAULT_TOKEN_TTL_SECONDS
+    if (not isinstance(raw, str) or not raw.isascii() or not raw.isdecimal()
+            or len(raw) > 5):
+        raise ValueError("DEV_IDENTITY_TOKEN_TTL_SECONDS must be an integer from 1 to 86400")
+    seconds = int(raw)
+    if not 1 <= seconds <= MAX_TOKEN_TTL_SECONDS:
+        raise ValueError("DEV_IDENTITY_TOKEN_TTL_SECONDS must be an integer from 1 to 86400")
+    return seconds
 
 
 def credentials_configuration(environ=None):
@@ -87,7 +104,11 @@ def openssl(*arguments, data=None):
 class DevelopmentIdentity:
     """One ephemeral key, discarded when the process stops."""
 
-    def __init__(self, directory, issuer="http://localhost:9000"):
+    def __init__(self, directory, issuer="http://localhost:9000",
+                 token_ttl_seconds=DEFAULT_TOKEN_TTL_SECONDS):
+        if type(token_ttl_seconds) is not int or not 1 <= token_ttl_seconds <= MAX_TOKEN_TTL_SECONDS:
+            raise ValueError("Invalid development token lifetime")
+        self.token_ttl_seconds = token_ttl_seconds
         self.issuer = issuer
         self.private_key = Path(directory) / "development-only.pem"
         openssl("genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048",
@@ -106,7 +127,7 @@ class DevelopmentIdentity:
         header = {"alg": "RS256", "typ": "JWT", "kid": self.jwk["kid"]}
         claims = {
             "iss": self.issuer, "aud": "spring-entra-demo", "sub": subject,
-            "iat": now, "nbf": now, "exp": now + 300, "scope": DEV_SCOPES,
+            "iat": now, "nbf": now, "exp": now + self.token_ttl_seconds, "scope": DEV_SCOPES,
         }
         signing_input = ".".join(
             base64url(json.dumps(value, separators=(",", ":")).encode("utf-8"))
@@ -116,7 +137,7 @@ class DevelopmentIdentity:
                             data=signing_input)
         return {
             "access_token": signing_input.decode("ascii") + "." + base64url(signature),
-            "token_type": "Bearer", "expires_in": 300, "scope": DEV_SCOPES,
+            "token_type": "Bearer", "expires_in": self.token_ttl_seconds, "scope": DEV_SCOPES,
         }
 
 
@@ -216,8 +237,9 @@ def main():
     try:
         host, issuer = configuration()
         credentials = credentials_configuration()
+        token_ttl_seconds = token_ttl_configuration()
         with tempfile.TemporaryDirectory(prefix="development-jwks-") as directory:
-            identity = DevelopmentIdentity(directory, issuer)
+            identity = DevelopmentIdentity(directory, issuer, token_ttl_seconds)
             with make_server(identity, host=host, credentials=credentials) as server:
                 print(f"Development-only identity provider listening on {host}:9000; do not expose publicly.",
                       flush=True)
@@ -225,7 +247,7 @@ def main():
     except KeyboardInterrupt:
         pass
     except (OSError, ValueError, subprocess.CalledProcessError):
-        raise SystemExit("Cannot start development issuer; check configuration, development credentials, OpenSSL and port 9000.")
+        raise SystemExit("Cannot start development issuer; check configuration, development credentials, token lifetime, OpenSSL and port 9000.")
 
 
 if __name__ == "__main__":

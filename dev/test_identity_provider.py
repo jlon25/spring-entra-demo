@@ -12,7 +12,8 @@ import urllib.error
 import urllib.request
 
 from identity_provider import (DevelopmentIdentity, configuration, credentials_configuration,
-                               credentials_match, make_server, openssl)
+                               credentials_match, make_server, openssl, token_ttl_configuration,
+                               DEFAULT_TOKEN_TTL_SECONDS)
 
 
 TEST_CREDENTIALS = ("test-local-user", "test-only-password-123")
@@ -30,6 +31,29 @@ class IdentityProviderTest(unittest.TestCase):
         self.assertEqual(configuration({"DEV_IDENTITY_BIND_ADDRESS": "0.0.0.0",
                                         "DEV_IDENTITY_ISSUER": "http://identity:9000"}),
                          ("0.0.0.0", "http://identity:9000"))
+
+    def test_token_lifetime_configuration_defaults_and_custom_values(self):
+        self.assertEqual(token_ttl_configuration({}), DEFAULT_TOKEN_TTL_SECONDS)
+        self.assertEqual(token_ttl_configuration({"DEV_IDENTITY_TOKEN_TTL_SECONDS": ""}),
+                         DEFAULT_TOKEN_TTL_SECONDS)
+        for value in ("1", "1800", "86400"):
+            self.assertEqual(token_ttl_configuration({"DEV_IDENTITY_TOKEN_TTL_SECONDS": value}),
+                             int(value))
+
+    def test_invalid_token_lifetime_configuration_is_rejected(self):
+        for value in ("0", "-1", "1.5", "abc", " 300", "86401", "9" * 100, "٣٠٠"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                token_ttl_configuration({"DEV_IDENTITY_TOKEN_TTL_SECONDS": value})
+
+    def test_custom_lifetime_matches_signed_claims_and_response(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lifetime = token_ttl_configuration({"DEV_IDENTITY_TOKEN_TTL_SECONDS": "1800"})
+            identity = DevelopmentIdentity(directory, token_ttl_seconds=lifetime)
+            response = identity.token_response()
+            claims = json.loads(decode(response["access_token"].split(".")[1]))
+            self.assertEqual(response["expires_in"], lifetime)
+            self.assertEqual(claims["exp"] - claims["iat"], lifetime)
+            self.assertEqual(claims["exp"] - claims["nbf"], lifetime)
 
     def test_invalid_bind_addresses_are_rejected(self):
         for host in ("", "localhost", "::1", "invalid", "0.0.0.0:9000"):
@@ -130,7 +154,7 @@ class IdentityProviderTest(unittest.TestCase):
                     credentials = dict(zip(("username", "password"), TEST_CREDENTIALS))
                     _, token = request("/token", 200, credentials)
                     self.assertEqual(token["token_type"], "Bearer")
-                    self.assertEqual(token["expires_in"], 300)
+                    self.assertEqual(token["expires_in"], DEFAULT_TOKEN_TTL_SECONDS)
                     self.assertEqual(token["scope"], "api.read hearing-types.read hearing-types.write")
                     claims = json.loads(decode(token["access_token"].split(".")[1]))
                     self.assertEqual(claims["sub"], TEST_CREDENTIALS[0])
@@ -174,7 +198,7 @@ class IdentityProviderTest(unittest.TestCase):
             self.assertEqual(payload["aud"], "spring-entra-demo")
             self.assertEqual(payload["scope"], "api.read hearing-types.read hearing-types.write")
             self.assertEqual(response["scope"], payload["scope"])
-            self.assertEqual(payload["exp"] - payload["iat"], 300)
+            self.assertEqual(payload["exp"] - payload["iat"], DEFAULT_TOKEN_TTL_SECONDS)
             self.assertEqual(set(identity.jwk), {"kty", "use", "alg", "kid", "n", "e"})
             self.assertEqual(int.from_bytes(decode(identity.jwk["e"]), "big"), 65537)
             public = Path(directory) / "public.pem"

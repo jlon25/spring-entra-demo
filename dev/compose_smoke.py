@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise local login and a running stack without printing credentials or tokens."""
 
+import base64
 import getpass
 import ipaddress
 import json
@@ -87,9 +88,27 @@ def verify_stack(api_base, identity_base, username, password):
         raise RuntimeError("Identity provider must return a Bearer token")
     if token_response.get("scope") != "api.read hearing-types.read hearing-types.write":
         raise RuntimeError("Identity provider returned unexpected development permissions")
+    lifetime = token_response.get("expires_in")
+    if type(lifetime) is not int or lifetime <= 0:
+        raise RuntimeError("Identity provider returned an invalid token lifetime")
+    configured_lifetime = os.environ.get("DEV_IDENTITY_TOKEN_TTL_SECONDS")
+    if configured_lifetime:
+        try:
+            expected_lifetime = int(configured_lifetime)
+        except ValueError:
+            raise RuntimeError("Invalid configured smoke-test token lifetime") from None
+        if lifetime != expected_lifetime:
+            raise RuntimeError("Identity provider did not apply the configured token lifetime")
     bearer = token_response.get("access_token")
     if not isinstance(bearer, str) or not bearer:
         raise RuntimeError("Identity provider returned no access token")
+    try:
+        payload = bearer.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        if claims["exp"] - claims["iat"] != lifetime:
+            raise ValueError("Inconsistent lifetime")
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise RuntimeError("JWT and token response lifetimes differ") from None
     if request(api_base, "/api/message", 200, bearer) != {"message": "authenticated"}:
         raise RuntimeError("Unexpected authenticated API response")
     print("Compose smoke check passed: public ping, Bearer rejection, public JWKS, local login and signed-token access")

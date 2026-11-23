@@ -29,7 +29,7 @@ Second terminal :
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique. **`POST /token`** vérifie les identifiants avant d’émettre un JWT de cinq minutes avec `api.read`, `hearing-types.read` et `hearing-types.write` ; `GET /token` ne délivre plus de jeton (`405`). Les clés privées restent temporaires et aucun jeton ni mot de passe n’est journalisé.
+Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique. **`POST /token`** vérifie les identifiants avant d’émettre un JWT dont la durée est configurée par `DEV_IDENTITY_TOKEN_TTL_SECONDS` (300 secondes par défaut), avec `api.read`, `hearing-types.read` et `hearing-types.write` ; `GET /token` ne délivre plus de jeton (`405`). Les clés privées restent temporaires et aucun jeton ni mot de passe n’est journalisé.
 
 Il s’agit d’un compte de développement unique configuré par `DEV_IDENTITY_USERNAME` (défaut `local-user`) et `DEV_IDENTITY_PASSWORD` (obligatoire, 12 caractères minimum, sans valeur par défaut). Ce compte ne correspond ni à un utilisateur Ubuntu ni à un compte Microsoft. Aucun mot de passe n’est stocké en base ; il reste dans la configuration locale et la mémoire du simulateur. Ne pas réutiliser un vrai mot de passe personnel. Ce mécanisme n’est pas un serveur OAuth ni une authentification de production ; pas de création de compte, MFA, renouvellement ou révocation.
 
@@ -41,7 +41,7 @@ python3 dev/compose_smoke.py
 
 Le script utilise les ports par défaut et `local-user`. Pour un autre compte, exporter `DEV_IDENTITY_USERNAME`. La CI fournit un mot de passe éphémère par variable d’environnement ; en terminal il est demandé si cette variable n’est pas définie. Le script ne charge pas `.env` : pour un utilisateur autre que `local-user`, exporter `DEV_IDENTITY_USERNAME` dans le terminal de test.
 
-Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in: 300` et `scope: api.read hearing-types.read hearing-types.write`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
+Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in` (durée configurée en secondes) et `scope: api.read hearing-types.read hearing-types.write`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
 
 
 ## Contrat de sécurité
@@ -299,3 +299,16 @@ docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml
 ```
 
 Ouvrir ensuite http://127.0.0.1:4200 après ouverture du tunnel décrit dans le guide. Les tunnels 8080/9000 des sections précédentes restent utiles aux tests HTTP ; pour l’interface, ajouter la redirection 4200. Conserver `.env`, les comptes PostgreSQL et les volumes.
+
+### Durée des jetons du simulateur
+
+Dans le `.env` existant, définir `DEV_IDENTITY_TOKEN_TTL_SECONDS=1800` pour 30 minutes. La valeur doit être un entier de 1 à 86400 secondes ; vide ou absente, elle conserve le défaut de 300 secondes. Le simulateur utilise cette même durée pour `expires_in` et le claim JWT `exp` ; Angular la lit dans la réponse de connexion, sans configuration distincte.
+
+Après modification, recréer le simulateur pour recharger son environnement :
+
+```sh
+docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up -d --build --wait --wait-timeout 240 identity
+docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up -d --force-recreate --wait --wait-timeout 240 api
+```
+
+Cette commande avec `--build` récupère aussi le code du simulateur lors de la première mise à jour ; pour les changements suivants de durée uniquement, le rebuild est facultatif. Après récupération initiale de cette PR, reconstruire également le frontend avec la commande de lancement des quatre services ci-dessus pour retirer son ancienne limite de cinq minutes. Se déconnecter puis se reconnecter : les jetons déjà émis gardent leur date d’expiration ; un redémarrage du simulateur change aussi sa clé éphémère. Recréer l’API comme ci-dessus vide son cache JWKS afin qu’elle récupère la nouvelle clé ; les anciens jetons ne sont plus utilisables. Le `.env` n’est pas chargé par le script Python lancé directement : dans ce cas exporter la variable avant son lancement. Cette option concerne le simulateur local, pas la future politique Entra. Des durées courtes restent préférables pour tester l’expiration.
