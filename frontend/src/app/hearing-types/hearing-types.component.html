@@ -1,8 +1,8 @@
 <section aria-labelledby="types-title">
-  <h1 id="types-title">Types d’audition</h1>
+  <h1 #listTitle id="types-title" tabindex="-1">Types d’audition</h1>
   <p>Configurez la durée, la pause minimale et la présence du défenseur pour chaque type.</p>
   @if (auth.hasScope('hearing-types.write')) {
-    <button type="button" (click)="create()" [disabled]="saving() || reloading() || loading()">Nouveau type</button>
+    <button type="button" (click)="create()" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">Nouveau type</button>
   } @else {
     <p>Consultation uniquement : vous ne disposez pas du droit de modification.</p>
   }
@@ -31,8 +31,11 @@
                 <td>{{ type.durationMinutes }}</td><td>{{ type.pauseMinutes }}</td>
                 <td>{{ type.defenderRequired ? 'Requis' : 'Non requis' }}</td>
                 @if (auth.hasScope('hearing-types.write')) {
-                  <td><button type="button" (click)="edit(type)" [disabled]="saving() || reloading() || loading()"
-                    [attr.aria-label]="'Modifier ' + type.label">Modifier</button></td>
+                  <td><button type="button" (click)="edit(type)" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
+                    [attr.aria-label]="'Modifier ' + type.label">Modifier</button>
+                    <button type="button" (click)="requestDeletion(type)"
+                      [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
+                      [attr.aria-label]="'Supprimer ' + type.label">Supprimer</button></td>
                 }
               </tr>
             }
@@ -41,6 +44,20 @@
       </div>
     }
   </div>
+  @if (deletion(); as target) {
+    <section role="region" aria-labelledby="delete-title" [attr.aria-busy]="deleting()">
+      <h2 #deleteTitle id="delete-title" tabindex="-1">Supprimer le type « {{ target.label }} » ?</h2>
+      <p>Cette suppression est définitive. Vérifiez le type avant de confirmer.</p>
+      @if (deleteError()) { <p role="alert">{{ deleteError() }}</p> }
+      @if (deleteBlocked()) {
+        <button type="button" (click)="reloadForDeletion()" [disabled]="deleting()">Recharger les types</button>
+      }
+      <button type="button" (click)="confirmDeletion()" [disabled]="deleting() || deleteBlocked()">
+        {{ deleting() ? 'Suppression…' : 'Confirmer la suppression' }}
+      </button>
+      <button type="button" (click)="cancelDeletion()" [disabled]="deleting()">Annuler la suppression</button>
+    </section>
+  }
   @if (editor(); as current) {
     <div class="editor">
       <h2 #editorTitle tabindex="-1">{{ current.id === null ? 'Créer un type' : 'Modifier un type' }}</h2>
@@ -49,11 +66,11 @@
         @if (error()) { <p #errorSummary role="alert" tabindex="-1">{{ error() }}</p> }
         @if (conflict()) {
           <p>Recharger remplacera votre saisie par les valeurs du serveur.</p>
-          <button type="button" (click)="reloadVersion()" [disabled]="saving() || reloading() || loading()">
+          <button type="button" (click)="reloadVersion()" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">
             Recharger la version serveur
           </button>
         }
-        <fieldset [disabled]="saving() || reloading() || loading()">
+        <fieldset [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">
           <legend>Paramètres du type</legend>
           <label for="type-label">Libellé</label>
           <input id="type-label" formControlName="label" aria-describedby="type-label-error"
@@ -75,10 +92,10 @@
           </label>
           <p id="type-defender-error" class="field-error">{{ fieldError('defenderRequired') }}</p>
           <div class="actions">
-            <button type="submit" [disabled]="saving() || reloading() || loading() || conflict()">
+            <button type="submit" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null || conflict()">
               {{ saving() ? 'Enregistrement…' : 'Enregistrer' }}
             </button>
-            <button type="button" (click)="cancel()" [disabled]="saving() || reloading() || loading()">Annuler</button>
+            <button type="button" (click)="cancel()" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">Annuler</button>
           </div>
         </fieldset>
       </form>

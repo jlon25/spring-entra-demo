@@ -25,7 +25,7 @@ async function fillType(page: Page, label: string, duration: string, pause: stri
   await page.getByLabel('Défenseur requis', { exact: true }).check();
 }
 
-function writeResponse(page: Page, method: 'POST' | 'PUT'): Promise<Response> {
+function writeResponse(page: Page, method: 'POST' | 'PUT' | 'DELETE'): Promise<Response> {
   return page.waitForResponse(response => response.request().method() === method
     && /^\/api\/hearing-types(?:\/[^/]+)?$/.test(new URL(response.url()).pathname));
 }
@@ -118,6 +118,78 @@ test('preserves a stale draft, reloads the current version and then saves withou
     expect((await refreshedSave).status()).toBe(200);
     await second.getByRole('button', { name: 'Modifier ' + label, exact: true }).click();
     await expect(second.getByLabel('Durée (minutes)', { exact: true })).toHaveValue('120');
+  } finally {
+    await second.close();
+  }
+});
+
+test('requires confirmation, supports cancellation and deletes the type persistently', async ({ page }) => {
+  const label = 'Fictitious-browser-delete-' + Date.now();
+  let deletions = 0;
+  page.on('request', request => {
+    if (request.method() === 'DELETE'
+        && new URL(request.url()).pathname.startsWith('/api/hearing-types/')) deletions++;
+  });
+  await login(page);
+  await openTypes(page);
+  await createType(page, label);
+  await page.getByRole('button', { name: 'Supprimer ' + label, exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Confirmer la suppression', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Annuler la suppression', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Confirmer la suppression', exact: true })).toBeHidden();
+  expect(deletions).toBe(0);
+  await page.getByRole('button', { name: 'Supprimer ' + label, exact: true }).click();
+  const deleted = writeResponse(page, 'DELETE');
+  await page.getByRole('button', { name: 'Confirmer la suppression', exact: true }).click();
+  const response = await deleted;
+  expect(response.status()).toBe(204);
+  expect(new URL(response.request().url()).searchParams.get('version')).toBe('0');
+  await expect(page.getByRole('button', { name: 'Supprimer ' + label, exact: true })).toBeHidden();
+  expect(deletions).toBe(1);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Connexion locale', exact: true })).toBeVisible();
+  await login(page);
+  const listed = page.waitForResponse(response => response.request().method() === 'GET'
+    && new URL(response.url()).pathname === '/api/hearing-types');
+  await openTypes(page);
+  expect((await listed).status()).toBe(200);
+  await expect(page.getByRole('button', { name: 'Supprimer ' + label, exact: true })).toBeHidden();
+});
+
+test('refuses deletion of an obsolete version and requires a new confirmation after reloading', async ({ page }) => {
+  const label = 'Fictitious-browser-delete-stale-' + Date.now();
+  await login(page);
+  await openTypes(page);
+  await createType(page, label);
+  const second = await page.context().newPage();
+  try {
+    await login(second);
+    await openTypes(second);
+    await expect(second.getByRole('button', { name: 'Supprimer ' + label, exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Modifier ' + label, exact: true }).click();
+    await page.getByLabel('Durée (minutes)', { exact: true }).fill('75');
+    const updated = writeResponse(page, 'PUT');
+    await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    expect((await updated).status()).toBe(200);
+    await second.getByRole('button', { name: 'Supprimer ' + label, exact: true }).click();
+    const stale = writeResponse(second, 'DELETE');
+    await second.getByRole('button', { name: 'Confirmer la suppression', exact: true }).click();
+    const refused = await stale;
+    expect(refused.status()).toBe(409);
+    expect(new URL(refused.request().url()).searchParams.get('version')).toBe('0');
+    await expect(second.getByRole('button', { name: 'Recharger les types', exact: true })).toBeVisible();
+    const listed = second.waitForResponse(response => response.request().method() === 'GET'
+      && new URL(response.url()).pathname === '/api/hearing-types');
+    await second.getByRole('button', { name: 'Recharger les types', exact: true }).click();
+    expect((await listed).status()).toBe(200);
+    await expect(second.getByRole('button', { name: 'Confirmer la suppression', exact: true })).toBeHidden();
+    await second.getByRole('button', { name: 'Supprimer ' + label, exact: true }).click();
+    const deletion = writeResponse(second, 'DELETE');
+    await second.getByRole('button', { name: 'Confirmer la suppression', exact: true }).click();
+    const deleted = await deletion;
+    expect(deleted.status()).toBe(204);
+    expect(new URL(deleted.request().url()).searchParams.get('version')).toBe('1');
+    await expect(second.getByRole('button', { name: 'Supprimer ' + label, exact: true })).toBeHidden();
   } finally {
     await second.close();
   }

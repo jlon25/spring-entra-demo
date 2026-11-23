@@ -42,12 +42,18 @@ export class HearingTypesComponent implements OnInit {
   private readonly api = inject(HearingTypesService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
+  @ViewChild('deleteTitle') private deleteTitle?: ElementRef<HTMLElement>;
+  @ViewChild('listTitle') private listTitle?: ElementRef<HTMLElement>;
   @ViewChild('editorTitle') private editorTitle?: ElementRef<HTMLElement>;
   @ViewChild('errorSummary') private errorSummary?: ElementRef<HTMLElement>;
   readonly types = signal<HearingType[]>([]);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly reloading = signal(false);
+  readonly deleting = signal(false);
+  readonly deletion = signal<HearingType | null>(null);
+  readonly deleteError = signal('');
+  readonly deleteBlocked = signal(false);
   readonly loadError = signal('');
   readonly error = signal('');
   readonly status = signal('');
@@ -77,7 +83,7 @@ export class HearingTypesComponent implements OnInit {
   }
 
   create(): void {
-    if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading()) return;
+    if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.deleting() || this.deletion() !== null) return;
     this.clearFeedback();
     this.editor.set({ id: null, version: null });
     this.form.reset({ label: '', durationMinutes: null, pauseMinutes: null, defenderRequired: false });
@@ -85,21 +91,21 @@ export class HearingTypesComponent implements OnInit {
   }
 
   edit(type: HearingType): void {
-    if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading()) return;
+    if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
     this.clearFeedback();
     this.setEditor(type);
     this.focusEditor();
   }
 
   cancel(): void {
-    if (this.saving() || this.reloading()) return;
+    if (this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
     this.editor.set(null);
     this.clearFeedback();
   }
 
   save(): void {
     const editor = this.editor();
-    if (!editor || !this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.conflict()) return;
+    if (!editor || !this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.conflict() || this.deleting() || this.deletion() !== null) return;
     this.error.set('');
     this.serverErrors.set({});
     this.status.set('');
@@ -147,7 +153,7 @@ export class HearingTypesComponent implements OnInit {
 
   reloadVersion(): void {
     const editor = this.editor();
-    if (!editor?.id || this.saving() || this.reloading()) return;
+    if (!editor?.id || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
     this.reloading.set(true);
     this.error.set('');
     this.api.get(editor.id).pipe(
@@ -165,6 +171,63 @@ export class HearingTypesComponent implements OnInit {
         this.focusError();
       }
     });
+  }
+
+  requestDeletion(type: HearingType): void {
+    if (!this.auth.hasScope('hearing-types.write') || this.deleting() || this.deletion()
+        || this.saving() || this.reloading() || this.loading()) return;
+    this.deleteError.set('');
+    this.deleteBlocked.set(false);
+    this.deletion.set({ ...type });
+    afterNextRender(() => this.deleteTitle?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  cancelDeletion(): void {
+    if (this.deleting()) return;
+    this.deletion.set(null);
+    this.deleteError.set('');
+    this.deleteBlocked.set(false);
+    afterNextRender(() => this.listTitle?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  confirmDeletion(): void {
+    const target = this.deletion();
+    if (!target || !this.auth.hasScope('hearing-types.write') || this.deleting()
+        || this.deleteBlocked() || this.saving() || this.reloading() || this.loading()) return;
+    this.deleting.set(true);
+    this.deleteError.set('');
+    this.api.remove(target.id, target.version).pipe(
+      finalize(() => this.deleting.set(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => {
+        this.deletion.set(null);
+        if (this.editor()?.id === target.id) {
+          this.editor.set(null);
+          this.clearFeedback();
+        }
+        this.status.set('Type « ' + target.label + ' » supprimé.');
+        this.load();
+        afterNextRender(() => this.listTitle?.nativeElement.focus(), { injector: this.injector });
+      },
+      error: (failure: unknown) => {
+        if (failure instanceof HttpErrorResponse && (failure.status === 409 || failure.status === 404)) {
+          this.deleteBlocked.set(true);
+          this.deleteError.set(failure.status === 409
+            ? 'Ce type a été modifié ailleurs. Rechargez les types puis vérifiez à nouveau avant de confirmer une suppression.'
+            : 'Ce type a déjà été supprimé ou est introuvable. Rechargez les types.');
+        } else {
+          this.deleteError.set(this.failureMessage(failure, 'supprimer le type'));
+        }
+        afterNextRender(() => this.deleteTitle?.nativeElement.focus(), { injector: this.injector });
+      }
+    });
+  }
+
+  reloadForDeletion(): void {
+    if (this.deleting()) return;
+    this.cancelDeletion();
+    this.load();
   }
 
   fieldError(field: Field): string {

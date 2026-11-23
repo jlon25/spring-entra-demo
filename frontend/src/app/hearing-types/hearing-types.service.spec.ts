@@ -38,6 +38,14 @@ describe('Hearing types HTTP contract', () => {
     request.flush(row);
   });
 
+  it('deletes only the selected version and accepts a 204 response', () => {
+    api.remove(row.id, row.version).subscribe();
+    const request = http.expectOne('/api/hearing-types/' + row.id + '?version=2');
+    expect(request.request.method).toBe('DELETE');
+    expect(request.request.body).toBeNull();
+    request.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
   it('updates with the version read by the editor, not a version supplied in the input', () => {
     api.update(row.id, { ...input, version: 99 } as HearingType, row.version).subscribe();
     const request = http.expectOne('/api/hearing-types/' + row.id);

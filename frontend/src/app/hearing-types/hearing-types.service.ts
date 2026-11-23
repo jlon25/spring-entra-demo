@@ -36,6 +36,11 @@ export class HearingTypesService {
       { ...this.payload(input), version });
   }
 
+  remove(id: string, version: number): Observable<void> {
+    return this.http.delete<void>(this.path + '/' + encodeURIComponent(id),
+      { params: { version } });
+  }
+
   private payload(input: HearingTypeInput): HearingTypeInput {
     return {
       label: input.label.trim(),

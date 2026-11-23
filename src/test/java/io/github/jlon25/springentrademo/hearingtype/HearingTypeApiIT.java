@@ -188,7 +188,8 @@ class HearingTypeApiIT {
         assertThat(created.statusCode()).isEqualTo(201);
         String id = object(created).get("id").toString();
         assertThat(request("PUT", PATH + "/" + id, update, token(WRITE)).statusCode()).isEqualTo(200);
-        assertThat(request("DELETE", PATH + "/" + id, null, token(BOTH)).statusCode()).isEqualTo(403);
+        assertThat(request("DELETE", PATH + "/" + id + "?version=1", null, token(READ)).statusCode()).isEqualTo(403);
+        assertThat(request("PATCH", PATH + "/" + id, null, token(BOTH)).statusCode()).isEqualTo(403);
     }
 
     @Test
@@ -299,7 +300,7 @@ class HearingTypeApiIT {
     }
 
     @Test
-    void applicationAccountCannotChangeSchemaDeleteOrWriteFlywayHistory() throws Exception {
+    void applicationAccountCannotChangeSchemaOrWriteFlywayHistory() throws Exception {
         try (Connection connection = appConnection(); var statement = connection.createStatement()) {
             try (var rows = statement.executeQuery(
                     "SELECT rolname, rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname = current_user")) {
@@ -311,10 +312,102 @@ class HearingTypeApiIT {
             }
             for (String sql : List.of(
                     "CREATE TABLE auditions.forbidden_test (id integer)",
-                    "DELETE FROM auditions.hearing_type WHERE false",
                     "UPDATE auditions.flyway_schema_history SET success = false WHERE false")) {
                 assertThatThrownBy(() -> statement.execute(sql)).isInstanceOfSatisfying(SQLException.class,
                         error -> assertThat(error.getSQLState()).isEqualTo("42501"));
+            }
+        }
+    }
+
+    @Test
+    void deleteRequiresWriteScopeAndRemovesThePersistedResource() throws Exception {
+        Map<?, ?> created = create();
+        String id = created.get("id").toString();
+        String path = PATH + "/" + id;
+        String deletion = path + "?version=0";
+        assertThat(request("DELETE", deletion, null, null).statusCode()).isEqualTo(401);
+        assertThat(request("DELETE", deletion, null, "not-a-jwt").statusCode()).isEqualTo(401);
+        assertThat(request("DELETE", deletion, null, token(READ)).statusCode()).isEqualTo(403);
+        assertThat(request("DELETE", deletion, null, token("api.read")).statusCode()).isEqualTo(403);
+        assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(created);
+
+        HttpResponse<String> deleted = request("DELETE", deletion, null, token(WRITE));
+        assertThat(deleted.statusCode()).isEqualTo(204);
+        assertThat(deleted.body()).isEmpty();
+        assertProblem(request("GET", path, null, token(READ)), 404);
+        assertProblem(request("DELETE", deletion, null, token(WRITE)), 404);
+        HttpResponse<String> listed = request("GET", PATH, null, token(READ));
+        assertThat(listed.statusCode()).isEqualTo(200);
+        List<?> resources = JSON.readValue(listed.body(), List.class);
+        assertThat(resources.stream().filter(Map.class::isInstance)
+                .map(Map.class::cast).anyMatch(item -> id.equals(item.get("id")))).isFalse();
+        try (Connection connection = appConnection(); var statement = connection.prepareStatement(
+                "SELECT count(*) FROM auditions.hearing_type WHERE id = ?")) {
+            statement.setObject(1, UUID.fromString(id));
+            try (var rows = statement.executeQuery()) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getInt(1)).isZero();
+            }
+        }
+    }
+
+    @Test
+    void deleteWithAnObsoleteVersionDoesNotRemoveTheNewerResource() throws Exception {
+        Map<?, ?> created = create();
+        String path = PATH + "/" + created.get("id");
+        Map<String, Object> update = validPayload("Fictitious-updated-before-delete");
+        update.put("version", 0);
+        HttpResponse<String> updated = request("PUT", path, update, token(WRITE));
+        assertThat(updated.statusCode()).isEqualTo(200);
+        assertProblem(request("DELETE", path + "?version=0", null, token(WRITE)), 409);
+        assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(object(updated));
+        assertThat(request("DELETE", path + "?version=1", null, token(WRITE)).statusCode()).isEqualTo(204);
+        assertProblem(request("GET", path, null, token(READ)), 404);
+    }
+
+    @Test
+    void deleteRequiresANonnegativeIntegerVersionAndAValidIdentifier() throws Exception {
+        Map<?, ?> created = create();
+        String path = PATH + "/" + created.get("id");
+        for (String suffix : List.of("", "?version=", "?version=-1", "?version=0.5",
+                "?version=null", "?version=invalid", "?version=9223372036854775808")) {
+            assertProblem(request("DELETE", path + suffix, null, token(WRITE)), 400);
+        }
+        assertProblem(request("DELETE", PATH + "/not-a-uuid?version=0", null, token(WRITE)), 400);
+        assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(created);
+    }
+
+    @Test
+    void concurrentDeleteAndUpdateCannotBothApplyToTheSameVersion() throws Exception {
+        Map<?, ?> created = create();
+        String path = PATH + "/" + created.get("id");
+        Map<String, Object> update = validPayload("Fictitious-delete-update-race");
+        update.put("version", 0);
+        String bearer = token(WRITE);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var deletion = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Race did not start");
+                return request("DELETE", path + "?version=0", null, bearer).statusCode();
+            });
+            var modification = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Race did not start");
+                return request("PUT", path, update, bearer).statusCode();
+            });
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            int deleteStatus = deletion.get(20, TimeUnit.SECONDS);
+            int updateStatus = modification.get(20, TimeUnit.SECONDS);
+            assertThat((deleteStatus == 204 && updateStatus == 404)
+                    || (deleteStatus == 409 && updateStatus == 200)).isTrue();
+            if (deleteStatus == 204) {
+                assertProblem(request("GET", path, null, token(READ)), 404);
+            }
+            else {
+                assertThat(number(object(request("GET", path, null, token(READ))), "version")).isEqualTo(1);
             }
         }
     }
@@ -342,9 +435,9 @@ class HearingTypeApiIT {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (Connection connection = migratorConnection(); var statement = connection.createStatement();
                 var rows = statement.executeQuery(
-                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version IN ('1', '2') AND success")) {
+                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version IN ('1', '2', '3') AND success")) {
             assertThat(rows.next()).isTrue();
-            assertThat(rows.getInt(1)).isEqualTo(2);
+            assertThat(rows.getInt(1)).isEqualTo(3);
         }
     }
 

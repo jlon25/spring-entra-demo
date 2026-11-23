@@ -180,6 +180,81 @@ describe('Hearing types page with simulated HTTP responses', () => {
     http.expectOne(path).flush([]);
   });
 
+  it('requires confirmation and cancels deletion without any HTTP request', () => {
+    const page = component();
+    page.requestDeletion(row);
+    expect(page.deletion()?.id).toBe(row.id);
+    http.expectNone(request => request.method === 'DELETE');
+    page.cancelDeletion();
+    expect(page.deletion()).toBeNull();
+    http.expectNone(request => request.method === 'DELETE');
+  });
+
+  it('deletes the captured version once and closes an editor for that type', () => {
+    const page = component();
+    page.edit(row);
+    page.requestDeletion(row);
+    page.confirmDeletion();
+    page.confirmDeletion();
+    const request = http.expectOne(path + '/' + row.id + '?version=2');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    expect(page.deletion()).toBeNull();
+    expect(page.editor()).toBeNull();
+    expect(page.status()).toContain('supprimé');
+    http.expectOne(path).flush([]);
+  });
+
+  it('does not offer deletion in read-only mode', async () => {
+    permissions.hasScope.mockReturnValue(false);
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([row]);
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('[aria-label="Supprimer Type fictif"]')).toBeNull();
+    fixture.componentInstance.requestDeletion(row);
+    fixture.componentInstance.confirmDeletion();
+    expect(fixture.componentInstance.deletion()).toBeNull();
+    http.expectNone(request => request.method === 'DELETE');
+  });
+
+  it('blocks stale or missing deletions until list reload and fresh confirmation', () => {
+    const page = component();
+    for (const status of [409, 404]) {
+      page.requestDeletion(row);
+      page.confirmDeletion();
+      http.expectOne(path + '/' + row.id + '?version=2')
+        .flush({}, { status, statusText: 'Conflict or missing' });
+      expect(page.deleteBlocked()).toBe(true);
+      expect(page.deletion()?.version).toBe(2);
+      page.confirmDeletion();
+      http.expectNone(request => request.method === 'DELETE');
+      page.reloadForDeletion();
+      http.expectOne(path).flush([{ ...row, version: 3 }]);
+      expect(page.deletion()).toBeNull();
+    }
+    page.requestDeletion({ ...row, version: 3 });
+    page.confirmDeletion();
+    http.expectOne(path + '/' + row.id + '?version=3')
+      .flush(null, { status: 204, statusText: 'No Content' });
+    http.expectOne(path).flush([]);
+  });
+
+  it('preserves another type draft and explains a forbidden deletion', () => {
+    const page = component();
+    page.edit({ ...row, id: 'other-type' });
+    page.form.controls.label.setValue('Brouillon conservé');
+    page.requestDeletion(row);
+    page.confirmDeletion();
+    http.expectOne(path + '/' + row.id + '?version=2')
+      .flush({}, { status: 403, statusText: 'Forbidden' });
+    expect(page.deleteError()).toContain('Vos droits');
+    expect(page.form.controls.label.value).toBe('Brouillon conservé');
+    page.cancelDeletion();
+    expect(page.editor()?.id).toBe('other-type');
+    expect(page.form.controls.label.value).toBe('Brouillon conservé');
+  });
+
   it('cancels an edit without sending a request', () => {
     const page = component(); page.edit(row); page.cancel();
     expect(page.editor()).toBeNull();

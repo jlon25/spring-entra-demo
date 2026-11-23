@@ -30,7 +30,7 @@ Pour cette première tranche, proposer un référentiel simple de types avec :
 
 La pause est administrable par type, conformément à la décision métier. Aucune valeur chiffrée de durée ou de pause ne sera ajoutée comme donnée réelle sans décision métier. Les exemples et fixtures seront explicitement fictifs.
 
-Premiers parcours proposés : liste des types, création, édition, consultation et modification de la pause du type. La suppression, l’archivage et l’historisation détaillée restent hors de cette première tranche ; ils seront cadrés avant d’introduire des auditions qui référencent ces types. Aucune donnée de personne auditionnée n’est nécessaire ici.
+Premiers parcours proposés : liste des types, création, édition, consultation et modification de la pause du type. La suppression physique avec confirmation et vérification de version a été demandée et ajoutée. L’archivage et l’historisation détaillée restent hors périmètre ; les règles pour un type référencé devront être définies avant d’introduire des auditions qui utilisent ces types. Aucune donnée de personne auditionnée n’est nécessaire ici.
 
 ## Décisions restantes et échéance
 

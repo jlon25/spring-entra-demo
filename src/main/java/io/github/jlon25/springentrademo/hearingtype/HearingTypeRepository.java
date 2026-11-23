@@ -53,4 +53,10 @@ public class HearingTypeRepository {
                 .param("pause", pauseMinutes).param("defender", defenderRequired).param("version", version)
                 .query(HearingType.class).optional();
     }
+    public int delete(UUID id, long version) {
+        // Compare and delete in one SQL statement; never delete a newer version.
+        return jdbc.sql("DELETE FROM hearing_type WHERE id = :id AND version = :version")
+                .param("id", id).param("version", version).update();
+    }
+
 }

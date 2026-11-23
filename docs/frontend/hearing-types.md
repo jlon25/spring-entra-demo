@@ -2,7 +2,7 @@
 
 ## Portée et prérequis
 
-Cette tranche ajoute le référentiel des types : consultation, création et modification du libellé, de la durée, de la pause minimale et de la règle de défenseur. Pas de suppression, dossiers, auditions, disponibilités ou moteur de planification. Le [contrat HTTP](../api/hearing-types.md) et les migrations V1/V2 existants sont conservés ; aucune nouvelle dépendance.
+Cette tranche ajoute le référentiel des types : consultation, création et modification du libellé, de la durée, de la pause minimale et de la règle de défenseur. Suppression explicite incluse ; pas de dossiers, auditions, disponibilités ou moteur de planification. Le [contrat HTTP](../api/hearing-types.md) et les migrations V1/V2 existants sont conservés ; V3 accorde le droit SQL de suppression. Aucune nouvelle dépendance.
 
 Le backend doit fonctionner avec le profil `postgres` et ses comptes déjà préparés. Une base PostgreSQL simplement démarrée sans API raccordée ne suffit pas. Suivre le [guide PostgreSQL](../deployment/postgresql.md) pour une première installation et le [guide frontend](../deployment/frontend.md) pour le tunnel SSH4200 et la connexion locale.
 
@@ -25,7 +25,7 @@ Conserver `.env`, les comptes, les données et les volumes. Aucun nouveau param�
 5. Pour un conflit, ouvrir la même fiche dans deux onglets, avec une connexion dans chaque onglet (session en mémoire seulement). Enregistrer une première modification, puis essayer d’enregistrer l’autre ancienne version. Le second enregistrement doit être refusé sans écraser la première modification.
 6. Vérifier que le brouillon reste visible après ce refus. « Recharger la version serveur » remplace explicitement la saisie par la version actuelle ; réappliquer ensuite les changements souhaités et enregistrer.
 
-Ces essais créent et modifient des données fictives persistantes. La suppression n’existe pas dans cette tranche.
+Ces essais créent et modifient des données fictives persistantes. Pour retirer une donnée fictive, utiliser le bouton « Supprimer » et confirmer explicitement.
 
 ## Validation, erreurs et droits
 
@@ -44,3 +44,11 @@ Les tests Angular simulent les réponses HTTP pour les états de liste, validati
 Le job `frontend-browser` prépare une base jetable, démarre les quatre services et exécute Chromium contre l’API et PostgreSQL. Il vérifie connexion, CRUD autorisé avec pause nulle, relecture après rechargement et conflit entre deux éditions. Les tests existants de réaction UI aux 401/403 restent explicitement simulés. Aucun appel Microsoft, aucune trace contenant les identifiants ou les jetons. Les résultats effectivement observés sont rapportés dans la PR/CI.
 
 La réussite CI ne vaut pas une validation sur la VM personnelle. Aucun changement n’est automatiquement déployé sur celle-ci. Un retour à l’ancienne interface conserve les types enregistrés et le schéma ; ne pas supprimer le volume.
+
+## Supprimer un type
+
+Cliquer sur « Supprimer » dans la ligne concernée. L’écran affiche son libellé et précise que la suppression est définitive. « Annuler la suppression » ne fait aucune requête DELETE ; « Confirmer la suppression » supprime uniquement la version affichée. Le bouton est réservé au droit d’écriture et ne permet pas plusieurs envois pendant la requête.
+
+Après un 409 (modification concurrente) ou 404 (type déjà absent), aucune nouvelle suppression n’est envoyée automatiquement. Utiliser « Recharger les types », vérifier la ligne actuelle, puis redemander et confirmer la suppression si elle est toujours souhaitée. Un refus 403 conserve la confirmation et explique le manque de droits. La saisie d’un autre type reste conservée ; si le type supprimé était en cours d’édition, son formulaire est fermé.
+
+Pour cette mise à jour, reconstruire les quatre services avec les commandes ci-dessus : Flyway applique V3 au démarrage de l’API sur le volume existant. Sauvegarder la base avant des essais de suppression importants. Aucun effacement de volume, reset de base ou changement de .env n’est nécessaire.
