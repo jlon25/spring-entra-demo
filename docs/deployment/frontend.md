@@ -2,7 +2,7 @@
 
 ## Portée
 
-Première tranche frontend : connexion locale, accueil protégé, appel à `GET /api/message`, expiration et déconnexion. L’écran de gestion des types d’audition sera livré ensuite. Angular est séparé du backend Maven ; aucun schéma ou contrat API existant n’est modifié.
+Première tranche frontend : connexion locale, accueil protégé, appel à `GET /api/message`, expiration et déconnexion. L’écran de gestion des types est disponible avec PostgreSQL : voir le [guide de gestion des types](../frontend/hearing-types.md). Angular est séparé du backend Maven ; aucun schéma ou contrat API existant n’est modifié.
 
 Versions : Angular et CLI 21.2.26, TypeScript 5.9.3, RxJS 7.8.2 et Node 24.22.2 pour le build. Les dépendances directes sont explicites et le lockfile npm est versionné. Angular 21 est zoneless par défaut ; les états asynchrones utilisent des signals. Pas de Zone.js, store global ou bibliothèque graphique supplémentaire.
 
@@ -109,9 +109,9 @@ npm test
 
 `frontend-verify` exécute `npm ci`, le build strict et les tests Angular/Vitest/jsdom. HttpTestingController simule les réponses pour vérifier formulaire, session, expiration, guards et limites du Bearer ; cela ne prouve pas la validation cryptographique.
 
-`frontend-browser` construit API, identité et frontend puis utilise Chromium/Playwright contre la vraie connexion locale et le vrai décodeur Spring. Les réponses 401/403 des tests de réaction UI sont explicitement simulées ; les connexions réussies utilisent le vrai émetteur. L’expiration par minuterie est couverte dans Angular. Traces, vidéos et captures sont désactivées afin de ne pas enregistrer les identifiants. La configuration définit aussi `PLAYWRIGHT_NO_COPY_PROMPT=1` pour empêcher la capture DOM automatique `error-context.md` de Playwright 1.58.2.
+`frontend-browser` prépare PostgreSQL et construit API, identité et frontend puis utilise Chromium/Playwright contre la vraie connexion locale et le vrai décodeur Spring. Les réponses 401/403 des tests de réaction UI sont explicitement simulées ; les connexions réussies utilisent le vrai émetteur. L’expiration par minuterie est couverte dans Angular. Traces, vidéos et captures sont désactivées afin de ne pas enregistrer les identifiants. La configuration définit aussi `PLAYWRIGHT_NO_COPY_PROMPT=1` pour empêcher la capture DOM automatique `error-context.md` de Playwright 1.58.2.
 
-Les résultats réellement exécutés figurent dans la PR/CI. Une réussite en CI ne vaut pas un test sur le navigateur Windows personnel. L’intégration graphique des types et l’attribution de droits Entra restent des étapes futures.
+Les résultats réellement exécutés figurent dans la PR/CI. Une réussite en CI ne vaut pas un test sur le navigateur Windows personnel. La gestion graphique des types est décrite dans son guide ; l’attribution de droits Entra reste une étape future.
 
 ## Reprise
 

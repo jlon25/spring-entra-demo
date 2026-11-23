@@ -13,6 +13,9 @@ import { AuthService } from './auth.service';
       <nav aria-label="Navigation principale">
         @if (auth.authenticated()) {
           <a routerLink="/accueil" routerLinkActive="active" ariaCurrentWhenActive="page">Accueil</a>
+          @if (auth.hasScope('hearing-types.read')) {
+            <a routerLink="/types-audition" routerLinkActive="active" ariaCurrentWhenActive="page">Types d’audition</a>
+          }
           <button type="button" (click)="logout()">Se déconnecter</button>
         } @else {
           <a routerLink="/login" routerLinkActive="active" ariaCurrentWhenActive="page">Connexion</a>

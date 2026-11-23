@@ -45,6 +45,8 @@ public class SecurityConfiguration {
                         .hasAuthority("SCOPE_hearing-types.write")
                         .requestMatchers(HttpMethod.PUT, "/api/hearing-types/{id}")
                         .hasAuthority("SCOPE_hearing-types.write")
+                        .requestMatchers(HttpMethod.DELETE, "/api/hearing-types/{id}")
+                        .hasAuthority("SCOPE_hearing-types.write")
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
                 .build();

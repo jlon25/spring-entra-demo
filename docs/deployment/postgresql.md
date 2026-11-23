@@ -111,7 +111,7 @@ Une réussite sur le runner CI ne démontre pas encore l’exécution sur la VM 
 
 La migration V1 est additive : l’ancien code sans persistance peut démarrer en ignorant le schéma. Pour revenir au mode API/JWT sans DB, recréer l’API avec le seul `compose.yaml` ; les routes métier ne sont alors pas disponibles. Conserver le volume, les rôles et les sauvegardes. Ne pas retirer la table ni modifier V1 après application ; toute correction ultérieure passe par une nouvelle migration.
 
-L’application locale détient les deux identifiants pour exécuter les migrations au démarrage. Les comptes SQL sont distincts, mais cela ne constitue pas une séparation de secrets entre processus : pour une production future, exécuter les migrations dans un processus dédié avant le lancement de l’API avec son seul compte DML. Le compte applicatif dispose seulement de SELECT/INSERT/UPDATE sur la table métier, pas de DELETE, DDL ou écriture dans l’historique Flyway.
+L’application locale détient les deux identifiants pour exécuter les migrations au démarrage. Les comptes SQL sont distincts, mais cela ne constitue pas une séparation de secrets entre processus : pour une production future, exécuter les migrations dans un processus dédié avant le lancement de l’API avec son seul compte DML. Le compte applicatif dispose de SELECT/INSERT/UPDATE/DELETE sur la table métier après V3, sans DDL ni écriture dans l’historique Flyway.
 
 Le dump n’inclut pas les rôles globaux. La restauration de contrôle avec `--no-owner --no-privileges` vérifie les données, mais ne suffit pas pour redémarrer l’API : une reprise réelle doit rétablir les propriétaires et droits du schéma, de la table et de l’historique, puis vérifier Flyway et les accès sous chaque compte. Ne pas prendre une restauration administrative pour une validation des droits applicatifs.
 
@@ -121,3 +121,7 @@ Le dump n’inclut pas les rôles globaux. La restauration de contrôle avec `--
 - [Image officielle PostgreSQL](https://hub.docker.com/_/postgres) : tag, layout18, variables d’initialisation et persistance.
 - [pg_dump PostgreSQL18](https://www.postgresql.org/docs/18/app-pgdump.html) : archive custom et périmètre d’une base.
 - [pg_restore PostgreSQL18](https://www.postgresql.org/docs/18/app-pgrestore.html) : restauration et droits.
+
+## Suppression des types (V3)
+
+La migration V3 ajoute uniquement le privilège DELETE sur auditions.hearing_type à auditions_app pour le nouvel endpoint explicite ; aucun rôle administrateur ni privilège global supplémentaire. Les migrations appliquées V1/V2 ne sont pas modifiées. La suppression physique est protégée par la version et une confirmation utilisateur. Elle ne se restaure pas par un simple revert du code ; conserver les sauvegardes.

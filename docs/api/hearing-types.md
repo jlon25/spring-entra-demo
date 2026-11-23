@@ -2,7 +2,7 @@
 
 ## Portée et décisions
 
-Première fonctionnalité métier : consulter, créer et modifier des types d’audition. Le profil `postgres` est requis ; le démarrage sans ce profil conserve le socle JWT sans persistance. Aucun écran Angular, suppression, dossier, audition planifiée ou donnée de personne n’est ajouté.
+Première fonctionnalité métier : consulter, créer et modifier des types d’audition. Le profil `postgres` est requis ; le démarrage sans ce profil conserve le socle JWT sans persistance. La suppression explicite des types est disponible ; aucun dossier, audition planifiée ou donnée de personne n’est ajouté.
 
 JDBC paramétré suffit à ce référentiel simple ; aucun ORM ou service intermédiaire sans responsabilité supplémentaire. Flyway applique les migrations versionnées dans le schéma `auditions`. V1 crée la table ; V2 assouplit la contrainte de pause pour accepter zéro sans modifier V1 ni les données. Java 21, Spring Boot 4.0.9 et Maven sont conservés ; les nouvelles dépendances restent gérées par Boot (Flyway 11.14.1, pilote PostgreSQL 42.7.14). PostgreSQL reste en version 18.6.
 
@@ -16,6 +16,7 @@ Les permissions `hearing-types.read` et `hearing-types.write` ont été validée
 | `GET /api/hearing-types/{id}` | `hearing-types.read` | `200`, ou `404` si absent |
 | `POST /api/hearing-types` | `hearing-types.write` | `201`, représentation créée et en-tête `Location` relatif |
 | `PUT /api/hearing-types/{id}` | `hearing-types.write` | `200`, représentation mise à jour ; `404` si absent, `409` si version périmée |
+| `DELETE /api/hearing-types/{id}?version={version}` | `hearing-types.write` | `204` sans corps ; `400` si version absente/invalide, `404` si absent, `409` si version périmée |
 
 Création, exemple entièrement fictif :
 
@@ -35,7 +36,7 @@ La pause est propre au type et destinée à tous les intervenants. La règle de 
 
 Suivre le [guide PostgreSQL](../deployment/postgresql.md) : ajouter les deux mots de passe dédiés au `.env`, sauvegarder la base existante, démarrer PostgreSQL, exécuter `bash dev/postgres_prepare.sh`, puis reconstruire les trois services. La préparation s’applique au volume existant ; les migrations sont exécutées au démarrage de l’API.
 
-Le compte SQL `auditions_app` dispose seulement de SELECT/INSERT/UPDATE sur la table métier. `auditions_migrator` possède le schéma et applique Flyway ; aucun des deux n’est superutilisateur. La table ne contient aucune donnée initiale.
+Le compte SQL `auditions_app` dispose de SELECT/INSERT/UPDATE/DELETE sur la table métier après V3. `auditions_migrator` possède le schéma et applique Flyway ; aucun des deux n’est superutilisateur. La table ne contient aucune donnée initiale.
 
 En lancement natif, fournir `APP_DB_URL` (URL JDBC avec `currentSchema=auditions`), `APP_DB_PASSWORD`, `DB_MIGRATION_PASSWORD`, puis utiliser `-Dspring-boot.run.profiles=local,postgres` pour le laboratoire local. La base doit être préparée et accessible depuis ce processus ; Compose ne publie pas son port. Ne pas publier le port de la base pour contourner les tests.
 
@@ -101,9 +102,9 @@ Adapter le nom si nécessaire. Refaire cette saisie avant chaque essai : le bloc
 }
 ```
 
-Attendu : consultation, type créé avec une pause de zéro minute en version 0, puis durée fictive 75, pause toujours nulle et version 1. La consultation initiale peut afficher les types fictifs créés lors d’essais précédents. Ne pas afficher `$body`, `$login` ou `$headers`, ni activer les traces HTTP. La création n’est pas annulée si une étape suivante échoue ; la suppression n’est pas disponible dans cette tranche.
+Attendu : consultation, type créé avec une pause de zéro minute en version 0, puis durée fictive 75, pause toujours nulle et version 1. La consultation initiale peut afficher les types fictifs créés lors d’essais précédents. Ne pas afficher `$body`, `$login` ou `$headers`, ni activer les traces HTTP. La création n’est pas annulée si une étape suivante échoue ; la suppression exige une confirmation séparée dans l’écran.
 
-Le navigateur seul ne fournit pas de Bearer : l’écran Angular de connexion et de configuration sera une étape suivante.
+L’[écran Angular des types](../frontend/hearing-types.md) fournit maintenant le parcours de connexion et de configuration, avec l’API raccordée à PostgreSQL. Les appels PowerShell restent disponibles pour les tests HTTP directs.
 
 ## Preuves et reprise
 
@@ -120,3 +121,9 @@ V1 ajoute une table et des droits, sans transformer les données précédentes. 
 - [PostgreSQL 18 : Read Committed](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED), réévaluation du prédicat après attente sur une mise à jour concurrente.
 - [PostgreSQL 18 : privilèges](https://www.postgresql.org/docs/18/ddl-priv.html), séparation du propriétaire de schéma et de l’accès applicatif.
 - [Security 7.0 : autorisation HTTP](https://docs.spring.io/spring-security/reference/7.0/servlet/authorization/authorize-http-requests.html) et [Resource Server JWT](https://docs.spring.io/spring-security/reference/7.0/servlet/oauth2/resource-server/jwt.html), droits explicites et validation conservée.
+
+## Suppression explicite
+
+Le DELETE exige la version entière positive ou nulle de la ressource lue. La comparaison et la suppression sont effectuées dans une seule requête SQL : une modification concurrente ne doit pas être supprimée silencieusement. Une version obsolète renvoie 409, sans nouvel essai automatique. Après rechargement, une nouvelle confirmation explicite est nécessaire. La suppression est physique et définitive ; aucun archivage ou undo n’est proposé. Aucun type n’est encore référencé par des auditions dans ce modèle. Avant d’ajouter ces liens, définir les règles de conservation et de suppression des types utilisés, sans introduire de cascade implicite.
+
+Flyway V3 accorde uniquement DELETE sur la table métier au compte auditions_app. V1 et V2 restent inchangées. L’API conserve ses comptes séparés et ne reçoit pas de droit DDL ni d’écriture sur l’historique Flyway. Un revert applicatif ne restaure pas les lignes supprimées : sauvegarde et restauration restent distinctes.

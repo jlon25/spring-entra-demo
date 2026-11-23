@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -61,6 +63,21 @@ public class HearingTypeController {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "The hearing type was modified. Reload it before saving again.");
                 });
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id,
+            @RequestParam(required = false) Long version) {
+        if (version == null || version < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "A non-negative version is required.");
+        }
+        if (repository.delete(id, version) == 0) {
+            if (repository.findById(id).isEmpty()) throw notFound();
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The hearing type was modified. Reload it before deleting.");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     private static ResponseStatusException notFound() {

@@ -10,6 +10,7 @@ export interface TokenResponse {
 interface Session {
   token: string;
   expiresAt: number;
+  permissions: readonly string[];
 }
 
 /** Browser memory only. Server JWT validation remains authoritative. */
@@ -34,8 +35,17 @@ export class AuthService {
     }
     this.logout();
     const duration = response.expires_in * 1000;
-    this.session.set({ token: response.access_token, expiresAt: Date.now() + duration });
+    this.session.set({
+      token: response.access_token,
+      expiresAt: Date.now() + duration,
+      permissions: typeof response.scope === 'string' ? response.scope.split(/\s+/).filter(Boolean) : []
+    });
     this.expiryTimer = setTimeout(() => this.expire(), duration);
+  }
+
+  // UI hints only. The API still verifies the signed token and required scope.
+  hasScope(permission: string): boolean {
+    return this.authenticated() && this.session()?.permissions.includes(permission) === true;
   }
 
   accessToken(): string | null {
