@@ -13,7 +13,7 @@ async function login(page: Page): Promise<void> {
 }
 
 async function openTypes(page: Page): Promise<void> {
-  // SPA navigation preserves the deliberately memory-only session.
+  // Router navigation keeps the current tab session and page state.
   await page.getByRole('link', { name: 'Types d’audition', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Types d’audition', exact: true })).toBeVisible();
 }
@@ -52,9 +52,7 @@ test('creates and updates a type with zero pause and rereads persisted values af
   await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   expect((await updated).status()).toBe(200);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Connexion locale', exact: true })).toBeVisible();
-  await login(page);
-  await openTypes(page);
+  await expect(page.getByRole('heading', { name: 'Types d’audition', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Modifier ' + label, exact: true }).click();
   await expect(page.getByLabel('Durée (minutes)', { exact: true })).toHaveValue('75');
   await expect(page.getByLabel('Pause minimale (minutes)', { exact: true })).toHaveValue('0');
@@ -146,12 +144,10 @@ test('requires confirmation, supports cancellation and deletes the type persiste
   expect(new URL(response.request().url()).searchParams.get('version')).toBe('0');
   await expect(page.getByRole('button', { name: 'Supprimer ' + label, exact: true })).toBeHidden();
   expect(deletions).toBe(1);
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Connexion locale', exact: true })).toBeVisible();
-  await login(page);
   const listed = page.waitForResponse(response => response.request().method() === 'GET'
     && new URL(response.url()).pathname === '/api/hearing-types');
-  await openTypes(page);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Types d’audition', exact: true })).toBeVisible();
   expect((await listed).status()).toBe(200);
   await expect(page.getByRole('button', { name: 'Supprimer ' + label, exact: true })).toBeHidden();
 });
@@ -193,4 +189,32 @@ test('refuses deletion of an obsolete version and requires a new confirmation af
   } finally {
     await second.close();
   }
+});
+
+test('keeps compact row actions separated on desktop, tablet and mobile', async ({ page }) => {
+  const label = 'Fictitious-layout-' + Date.now() + '-Audition complémentaire';
+  await login(page);
+  await openTypes(page);
+  await createType(page, label);
+  const edit = page.getByRole('button', { name: 'Modifier ' + label, exact: true });
+  const remove = page.getByRole('button', { name: 'Supprimer ' + label, exact: true });
+  for (const width of [1280, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await remove.scrollIntoViewIfNeeded();
+    const a = await edit.boundingBox();
+    const b = await remove.boundingBox();
+    if (!a || !b) throw new Error('Row action is not rendered');
+    expect(a.height).toBeGreaterThanOrEqual(32);
+    expect(a.height).toBeLessThanOrEqual(36);
+    expect(b.height).toBeGreaterThanOrEqual(32);
+    expect(b.height).toBeLessThanOrEqual(36);
+    const gap = Math.max(b.x - a.x - a.width, a.x - b.x - b.width,
+      b.y - a.y - a.height, a.y - b.y - b.height);
+    expect(gap).toBeGreaterThanOrEqual(7);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  }
+  await remove.click();
+  await expect(page.getByRole('button', { name: 'Confirmer la suppression', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Annuler la suppression', exact: true }).click();
+  await expect(remove).toBeEnabled();
 });
