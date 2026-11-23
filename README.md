@@ -51,7 +51,7 @@ Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: applic
 | `GET /public/ping` | Public, JSON `{"message":"pong"}` |
 | `GET /api/message` | JWT valide et autorité `SCOPE_api.read` |
 | `GET /api/hearing-types` et `GET /api/hearing-types/{id}` | Profil `postgres`, droit `hearing-types.read` |
-| `POST /api/hearing-types` et `PUT /api/hearing-types/{id}` | Profil `postgres`, droit `hearing-types.write` |
+| `POST /api/hearing-types`, `PUT /api/hearing-types/{id}` et `DELETE /api/hearing-types/{id}?version={version}` | Profil `postgres`, droit `hearing-types.write` |
 | Toute autre route ou méthode | Refusée par défaut |
 
 Jeton absent/invalide : `401`. JWT valide sans scope requis : `403`. Seul RS256 est accepté avec une clé du JWKS configuré. Signature, issuer exact, audience et expiration obligatoire sont vérifiés ; `nbf` est vérifié s’il est présent. Tolérance d’horloge : 60 secondes. Les scopes `scope` ou `scp` deviennent des autorités `SCOPE_…`. L’identité n’accorde pas de permission sans règle explicite.
