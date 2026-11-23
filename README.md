@@ -238,7 +238,7 @@ Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La r
 
 Le [modèle métier initial](docs/domain/audition-planning.md) décrit les dossiers, auditions, intervenants, disponibilités, préférences et règles de confirmation. Il distingue les règles validées des décisions encore ouvertes et propose les premiers scénarios d’acceptation.
 
-Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). L’API des types et sa persistance sont implémentées. Le socle Angular permet la connexion ; son écran de gestion des types et les autres fonctions métier restent à développer.
+Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). L’API des types et sa persistance sont implémentées. Le socle Angular permet la connexion ; l’écran permet maintenant la gestion des types ; les autres fonctions métier restent à développer.
 
 Le [découpage de la première tranche](docs/domain/first-slice-hearing-types.md) précise les petites PR prévues pour les types d’audition, PostgreSQL et l’interface Angular, ainsi que les décisions métier encore à confirmer.
 
@@ -275,7 +275,7 @@ Le [guide PostgreSQL](docs/deployment/postgresql.md) explique le volume persista
 
 Le script de préparation fonctionne aussi sur une base déjà initialisée : il crée les comptes dédiés et réapplique leurs mots de passe depuis la configuration. Il n’efface aucune donnée. La migration s’exécute ensuite avec `auditions_migrator` ; les requêtes de l’API utilisent `auditions_app`, sans droits d’administration. Ne pas démarrer l’API raccordée avant cette préparation. Voir le [guide PostgreSQL](docs/deployment/postgresql.md) pour la reprise et les limites de ce laboratoire.
 
-Pour tester la consultation/création/modification depuis Windows avec le tunnel existant, suivre le [parcours PowerShell](docs/api/hearing-types.md#test-depuis-windows). Le [socle Angular de connexion](docs/deployment/frontend.md) est disponible ; l’écran des types sera livré ensuite.
+Pour tester la consultation/création/modification depuis Windows avec le tunnel existant, suivre le [parcours PowerShell](docs/api/hearing-types.md#test-depuis-windows). Le [socle Angular de connexion](docs/deployment/frontend.md) est disponible ; l’[écran des types d’audition](docs/frontend/hearing-types.md) permet leur consultation, création et modification.
 
 ### Sauvegarde manuelle horodatée
 
@@ -291,7 +291,7 @@ Cette commande crée une sauvegarde à la demande ; aucune sauvegarde n’est d�
 
 ## Frontend Angular : connexion depuis le navigateur
 
-Le [guide frontend](docs/deployment/frontend.md) décrit le lancement, le tunnel SSH avec le port **4200**, les tests navigateur et les commandes npm. Cette première interface permet la connexion locale, l’appel protégé à `/api/message`, l’expiration et la déconnexion. Elle ne gère pas encore les types d’audition.
+Le [guide frontend](docs/deployment/frontend.md) décrit le lancement, le tunnel SSH avec le port **4200**, les tests navigateur et les commandes npm. Cette première interface permet la connexion locale, l’appel protégé à `/api/message`, l’expiration et la déconnexion. La [gestion des types d’audition](docs/frontend/hearing-types.md) est disponible avec l’API raccordée à PostgreSQL.
 
 Avec PostgreSQL déjà préparé :
 
@@ -313,3 +313,7 @@ docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml
 ```
 
 Cette commande avec `--build` récupère aussi le code du simulateur lors de la première mise à jour ; pour les changements suivants de durée uniquement, le rebuild est facultatif. Après récupération initiale de cette PR, reconstruire également le frontend avec la commande de lancement des quatre services ci-dessus pour retirer son ancienne limite de cinq minutes. Se déconnecter puis se reconnecter : les jetons déjà émis gardent leur date d’expiration ; un redémarrage du simulateur change aussi sa clé éphémère. Recréer l’API comme ci-dessus vide son cache JWKS afin qu’elle récupère la nouvelle clé ; les anciens jetons ne sont plus utilisables. Le `.env` n’est pas chargé par le script Python lancé directement : dans ce cas exporter la variable avant son lancement. Cette option concerne le simulateur local, pas la future politique Entra. Des durées courtes restent préférables pour tester l’expiration.
+
+## Types d’audition dans Angular
+
+Après connexion, ouvrir **Types d’audition** pour consulter, créer ou modifier un type, avec pause de zéro autorisée. Le [guide de l’écran](docs/frontend/hearing-types.md) décrit les tests de validation et le conflit entre deux éditions. L’API doit être démarrée avec le profil PostgreSQL ; aucune nouvelle migration ou variable n’est nécessaire.

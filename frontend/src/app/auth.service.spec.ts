@@ -76,6 +76,20 @@ describe('AuthService memory session', () => {
     }
   });
 
+  it('exposes permissions as UI hints without inferring additional rights', () => {
+    auth.startSession({ ...response, scope: 'hearing-types.read' });
+    expect(auth.hasScope('hearing-types.read')).toBe(true);
+    expect(auth.hasScope('hearing-types.write')).toBe(false);
+    auth.startSession({ ...response, scope: 'hearing-types.write' });
+    expect(auth.hasScope('hearing-types.read')).toBe(false);
+    expect(auth.hasScope('hearing-types.write')).toBe(true);
+    auth.logout();
+    expect(auth.hasScope('hearing-types.write')).toBe(false);
+    auth.startSession({ ...response, scope: 'hearing-types.read', expires_in: 1 });
+    vi.advanceTimersByTime(1000);
+    expect(auth.hasScope('hearing-types.read')).toBe(false);
+  });
+
   it('does not let an old request invalidate a newer session', () => {
     auth.startSession(response);
     auth.startSession({ ...response, access_token: 'new-fictitious-token' });

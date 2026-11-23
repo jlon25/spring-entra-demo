@@ -201,17 +201,23 @@ jobs:
           python3 - <<'PYTHON'
           import os
           import secrets
-          password = secrets.token_urlsafe(24)
-          print("::add-mask::" + password)
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as environment:
               environment.write("DEV_IDENTITY_USERNAME=local-user\n")
-              environment.write("DEV_IDENTITY_PASSWORD=" + password + "\n")
+              for name in ("DEV_IDENTITY_PASSWORD", "POSTGRES_PASSWORD",
+                           "APP_DB_PASSWORD", "DB_MIGRATION_PASSWORD"):
+                  value = secrets.token_urlsafe(24)
+                  print("::add-mask::" + value)
+                  environment.write(name + "=" + value + "\n")
           PYTHON
       - name: Validate frontend Compose configuration
-        run: docker compose -f compose.yaml -f compose.frontend.yaml config --quiet
-      - name: Build and start API, identity and frontend
-        run: docker compose -f compose.yaml -f compose.frontend.yaml up --build --wait --wait-timeout 240
-      - name: Exercise Chromium against the real API and local issuer
+        run: docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml config --quiet
+      - name: Start disposable PostgreSQL before preparing application roles
+        run: docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up -d --wait --wait-timeout 120 postgres
+      - name: Prepare application roles and schema on the disposable database
+        run: bash dev/postgres_prepare.sh
+      - name: Build and start PostgreSQL, API, identity and frontend
+        run: docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up --build --wait --wait-timeout 240
+      - name: Exercise Chromium against the real API, issuer and PostgreSQL
         run: |
           docker run --rm --network host --ipc=host \
             -e DEV_IDENTITY_USERNAME -e DEV_IDENTITY_PASSWORD \
@@ -221,4 +227,4 @@ jobs:
             sh -c 'npm ci --no-audit --no-fund && npm run test:e2e'
       - name: Clean up this disposable CI project
         if: always()
-        run: docker compose -f compose.yaml -f compose.frontend.yaml down --volumes --remove-orphans
+        run: docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml down --volumes --remove-orphans

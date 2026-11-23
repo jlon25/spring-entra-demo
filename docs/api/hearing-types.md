@@ -103,7 +103,7 @@ Adapter le nom si nécessaire. Refaire cette saisie avant chaque essai : le bloc
 
 Attendu : consultation, type créé avec une pause de zéro minute en version 0, puis durée fictive 75, pause toujours nulle et version 1. La consultation initiale peut afficher les types fictifs créés lors d’essais précédents. Ne pas afficher `$body`, `$login` ou `$headers`, ni activer les traces HTTP. La création n’est pas annulée si une étape suivante échoue ; la suppression n’est pas disponible dans cette tranche.
 
-Le navigateur seul ne fournit pas de Bearer : l’écran Angular de connexion et de configuration sera une étape suivante.
+L’[écran Angular des types](../frontend/hearing-types.md) fournit maintenant le parcours de connexion et de configuration, avec l’API raccordée à PostgreSQL. Les appels PowerShell restent disponibles pour les tests HTTP directs.
 
 ## Preuves et reprise
 

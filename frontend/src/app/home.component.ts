@@ -2,9 +2,12 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
+import { RouterLink } from '@angular/router';
+import { AuthService } from './auth.service';
 
 @Component({
   selector: 'app-home',
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section aria-labelledby="home-title" [attr.aria-busy]="busy()">
@@ -15,11 +18,14 @@ import { finalize } from 'rxjs';
       </button>
       @if (message()) { <p role="status">Accès à l’API confirmé : {{ message() }}</p> }
       @if (error()) { <p role="alert">{{ error() }}</p> }
-      <p>La gestion des types d’audition sera ajoutée dans une prochaine étape.</p>
+      @if (auth.hasScope('hearing-types.read')) {
+        <p><a routerLink="/types-audition">Ouvrir les types d’audition</a></p>
+      }
     </section>
   `
 })
 export class HomeComponent {
+  readonly auth = inject(AuthService);
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
   readonly busy = signal(false);

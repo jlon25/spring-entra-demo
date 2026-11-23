@@ -3,7 +3,7 @@
 body { margin: 0; }
 header { background: #153b50; color: white; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
 .brand { font-weight: 700; font-size: 1.15rem; }
-nav { display: flex; gap: 1rem; align-items: center; }
+nav { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 nav a { color: white; }
 main { max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
 section { background: white; padding: 2rem; border-radius: .5rem; box-shadow: 0 2px 12px #153b5014; }
