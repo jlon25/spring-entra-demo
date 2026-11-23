@@ -16,3 +16,12 @@ __pycache__/
 # Private local database backups
 /backups/
 *.dump
+
+# Angular and browser tests
+/frontend/node_modules/
+/frontend/.angular/
+/frontend/dist/
+/frontend/out-tsc/
+/frontend/coverage/
+/frontend/test-results/
+/frontend/playwright-report/

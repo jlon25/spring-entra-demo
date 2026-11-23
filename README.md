@@ -1,6 +1,6 @@
 # spring-entra-demo
 
-API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Aucun frontend ; la connexion locale simulée se fait via HTTP. Le profil optionnel `postgres` raccorde l’API à PostgreSQL et expose le référentiel des types d’audition. Microsoft Entra sera intégré ultérieurement.
+API Spring Boot pour un frontend séparé, authentifiée par Bearer JWT via OAuth2 Resource Server. Le frontend Angular séparé propose une connexion locale et un accueil de vérification API. Le profil optionnel `postgres` raccorde l’API à PostgreSQL et expose le référentiel des types d’audition. Microsoft Entra sera intégré ultérieurement.
 
 ## Prérequis et vérifications
 
@@ -29,7 +29,7 @@ Second terminal :
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique. **`POST /token`** vérifie les identifiants avant d’émettre un JWT de cinq minutes avec `api.read`, `hearing-types.read` et `hearing-types.write` ; `GET /token` ne délivre plus de jeton (`405`). Les clés privées restent temporaires et aucun jeton ni mot de passe n’est journalisé.
+Le simulateur écoute uniquement `127.0.0.1:9000`. `GET /jwks` publie la clé publique. **`POST /token`** vérifie les identifiants avant d’émettre un JWT dont la durée est configurée par `DEV_IDENTITY_TOKEN_TTL_SECONDS` (300 secondes par défaut), avec `api.read`, `hearing-types.read` et `hearing-types.write` ; `GET /token` ne délivre plus de jeton (`405`). Les clés privées restent temporaires et aucun jeton ni mot de passe n’est journalisé.
 
 Il s’agit d’un compte de développement unique configuré par `DEV_IDENTITY_USERNAME` (défaut `local-user`) et `DEV_IDENTITY_PASSWORD` (obligatoire, 12 caractères minimum, sans valeur par défaut). Ce compte ne correspond ni à un utilisateur Ubuntu ni à un compte Microsoft. Aucun mot de passe n’est stocké en base ; il reste dans la configuration locale et la mémoire du simulateur. Ne pas réutiliser un vrai mot de passe personnel. Ce mécanisme n’est pas un serveur OAuth ni une authentification de production ; pas de création de compte, MFA, renouvellement ou révocation.
 
@@ -41,7 +41,7 @@ python3 dev/compose_smoke.py
 
 Le script utilise les ports par défaut et `local-user`. Pour un autre compte, exporter `DEV_IDENTITY_USERNAME`. La CI fournit un mot de passe éphémère par variable d’environnement ; en terminal il est demandé si cette variable n’est pas définie. Le script ne charge pas `.env` : pour un utilisateur autre que `local-user`, exporter `DEV_IDENTITY_USERNAME` dans le terminal de test.
 
-Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in: 300` et `scope: api.read hearing-types.read hearing-types.write`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
+Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in` (durée configurée en secondes) et `scope: api.read hearing-types.read hearing-types.write`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
 
 
 ## Contrat de sécurité
@@ -78,7 +78,7 @@ Lire [AGENTS.md](AGENTS.md) et les fiches avant contribution. Ne pas fusionner n
 
 ## Docker Compose et VM Hyper-V
 
-Le Compose de base démarre deux services : l’API et le simulateur local JWKS. PostgreSQL est optionnel via un second fichier, voir la section dédiée. Aucun frontend Angular n’est encore disponible. Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
+Le Compose de base démarre deux services : l’API et le simulateur local JWKS. PostgreSQL est optionnel via un second fichier, voir la section dédiée. Le frontend Angular est optionnel via `compose.frontend.yaml` ; voir le [guide frontend](docs/deployment/frontend.md). Cible : VM Ubuntu 26.04 LTS sous Hyper-V Windows, Docker 29.6.0 et Compose 5.1.4 :
 
 ```sh
 test -f .env || cp .env.example .env  # conserve le fichier existant
@@ -237,7 +237,7 @@ Saisir le mot de passe du simulateur défini dans `.env`, pas celui de SSH. La r
 
 Le [modèle métier initial](docs/domain/audition-planning.md) décrit les dossiers, auditions, intervenants, disponibilités, préférences et règles de confirmation. Il distingue les règles validées des décisions encore ouvertes et propose les premiers scénarios d’acceptation.
 
-Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). L’API des types et sa persistance sont maintenant implémentées ; Angular et les autres fonctions métier restent à développer.
+Le futur frontend sera réalisé avec Angular sous la responsabilité du [spécialiste Angular](docs/agents/angular-developer.md). L’API des types et sa persistance sont implémentées. Le socle Angular permet la connexion ; son écran de gestion des types et les autres fonctions métier restent à développer.
 
 Le [découpage de la première tranche](docs/domain/first-slice-hearing-types.md) précise les petites PR prévues pour les types d’audition, PostgreSQL et l’interface Angular, ainsi que les décisions métier encore à confirmer.
 
@@ -274,7 +274,7 @@ Le [guide PostgreSQL](docs/deployment/postgresql.md) explique le volume persista
 
 Le script de préparation fonctionne aussi sur une base déjà initialisée : il crée les comptes dédiés et réapplique leurs mots de passe depuis la configuration. Il n’efface aucune donnée. La migration s’exécute ensuite avec `auditions_migrator` ; les requêtes de l’API utilisent `auditions_app`, sans droits d’administration. Ne pas démarrer l’API raccordée avant cette préparation. Voir le [guide PostgreSQL](docs/deployment/postgresql.md) pour la reprise et les limites de ce laboratoire.
 
-Pour tester la consultation/création/modification depuis Windows avec le tunnel existant, suivre le [parcours PowerShell](docs/api/hearing-types.md#test-depuis-windows). Il n’y a toujours pas d’écran Angular.
+Pour tester la consultation/création/modification depuis Windows avec le tunnel existant, suivre le [parcours PowerShell](docs/api/hearing-types.md#test-depuis-windows). Le [socle Angular de connexion](docs/deployment/frontend.md) est disponible ; l’écran des types sera livré ensuite.
 
 ### Sauvegarde manuelle horodatée
 
@@ -287,3 +287,28 @@ bash dev/postgres_backup.sh "backups/auditions-$(date -u +%Y-%m-%d_%H-%M-%SZ).du
 La date et l’heure **UTC** sont calculées au moment de l’exécution, à la seconde près. Le suffixe `Z` indique UTC ; le nom suit par exemple la forme `auditions-2026-11-03_14-30-05Z.dump`. Deux lancements dans la même seconde peuvent produire le même nom : le script refuse alors d’écraser l’archive existante.
 
 Cette commande crée une sauvegarde à la demande ; aucune sauvegarde n’est déclenchée automatiquement à l’arrêt de la VM ou au redémarrage de Docker. Le script crée le dossier `backups/` si nécessaire. Les archives sont privées et ignorées par Git ; conserver une copie importante hors de la VM, dans un emplacement protégé. Consulter le [guide PostgreSQL](docs/deployment/postgresql.md) pour les limites de la sauvegarde et la vérification d’une restauration.
+
+## Frontend Angular : connexion depuis le navigateur
+
+Le [guide frontend](docs/deployment/frontend.md) décrit le lancement, le tunnel SSH avec le port **4200**, les tests navigateur et les commandes npm. Cette première interface permet la connexion locale, l’appel protégé à `/api/message`, l’expiration et la déconnexion. Elle ne gère pas encore les types d’audition.
+
+Avec PostgreSQL déjà préparé :
+
+```sh
+docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up --build --wait --wait-timeout 240
+```
+
+Ouvrir ensuite http://127.0.0.1:4200 après ouverture du tunnel décrit dans le guide. Les tunnels 8080/9000 des sections précédentes restent utiles aux tests HTTP ; pour l’interface, ajouter la redirection 4200. Conserver `.env`, les comptes PostgreSQL et les volumes.
+
+### Durée des jetons du simulateur
+
+Dans le `.env` existant, définir `DEV_IDENTITY_TOKEN_TTL_SECONDS=1800` pour 30 minutes. La valeur doit être un entier de 1 à 86400 secondes ; vide ou absente, elle conserve le défaut de 300 secondes. Le simulateur utilise cette même durée pour `expires_in` et le claim JWT `exp` ; Angular la lit dans la réponse de connexion, sans configuration distincte.
+
+Après modification, recréer le simulateur pour recharger son environnement :
+
+```sh
+docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up -d --build --wait --wait-timeout 240 identity
+docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml up -d --force-recreate --wait --wait-timeout 240 api
+```
+
+Cette commande avec `--build` récupère aussi le code du simulateur lors de la première mise à jour ; pour les changements suivants de durée uniquement, le rebuild est facultatif. Après récupération initiale de cette PR, reconstruire également le frontend avec la commande de lancement des quatre services ci-dessus pour retirer son ancienne limite de cinq minutes. Se déconnecter puis se reconnecter : les jetons déjà émis gardent leur date d’expiration ; un redémarrage du simulateur change aussi sa clé éphémère. Recréer l’API comme ci-dessus vide son cache JWKS afin qu’elle récupère la nouvelle clé ; les anciens jetons ne sont plus utilisables. Le `.env` n’est pas chargé par le script Python lancé directement : dans ce cas exporter la variable avant son lancement. Cette option concerne le simulateur local, pas la future politique Entra. Des durées courtes restent préférables pour tester l’expiration.
