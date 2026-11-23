@@ -134,6 +134,7 @@ La [procédure d’installation et de dépannage KVP](docs/deployment/docker-hyp
     ssh -N -o ExitOnForwardFailure=yes `
         -L 127.0.0.1:8080:127.0.0.1:8080 `
         -L 127.0.0.1:9000:127.0.0.1:9000 `
+        -L 127.0.0.1:4200:127.0.0.1:4200 `
         "$VmUser@$($VmIps[0])"
 }
 ```
