@@ -31,11 +31,16 @@
                 <td>{{ type.durationMinutes }}</td><td>{{ type.pauseMinutes }}</td>
                 <td>{{ type.defenderRequired ? 'Requis' : 'Non requis' }}</td>
                 @if (auth.hasScope('hearing-types.write')) {
-                  <td><button type="button" (click)="edit(type)" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
-                    [attr.aria-label]="'Modifier ' + type.label">Modifier</button>
-                    <button type="button" (click)="requestDeletion(type)"
-                      [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
-                      [attr.aria-label]="'Supprimer ' + type.label">Supprimer</button></td>
+                  <td class="actions-cell">
+                    <div class="row-actions">
+                      <button type="button" class="button-secondary" (click)="edit(type)"
+                        [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
+                        [attr.aria-label]="'Modifier ' + type.label">Modifier</button>
+                      <button type="button" class="button-danger" (click)="requestDeletion(type)"
+                        [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
+                        [attr.aria-label]="'Supprimer ' + type.label">Supprimer</button>
+                    </div>
+                  </td>
                 }
               </tr>
             }

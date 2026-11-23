@@ -319,3 +319,9 @@ Cette commande avec `--build` récupère aussi le code du simulateur lors de la 
 Après connexion, ouvrir **Types d’audition** pour consulter, créer, modifier ou supprimer un type, avec pause de zéro autorisée. Le [guide de l’écran](docs/frontend/hearing-types.md) décrit les tests de validation et le conflit entre deux éditions. L’API doit être démarrée avec le profil PostgreSQL ; V3 accorde le droit SQL de suppression au démarrage ; aucune nouvelle variable n’est nécessaire.
 
 La suppression d’un type demande une confirmation explicite et vérifie sa version pour refuser une modification concurrente. Elle est définitive : un revert de l’application ne restaure pas les lignes supprimées. Voir le [guide de l’écran](docs/frontend/hearing-types.md#supprimer-un-type). Reconstruire l’API pour appliquer V3, sans supprimer le volume.
+
+## Session après rafraîchissement
+
+Angular restaure la session valide dans le même onglet via `sessionStorage`, sans modifier l’expiration du jeton. Déconnexion, expiration ou401 API effacent cet état. Aucun mot de passe n’est conservé, et `localStorage` n’est pas utilisé. Si le navigateur bloque le stockage, la session reste utilisable en mémoire mais sera perdue au rafraîchissement. Voir le [guide frontend](docs/deployment/frontend.md#architecture-et-sécurité) pour les limites et le choix de stockage.
+
+Les boutons du tableau sont plus compacts et séparés ; le tableau reste défilable sur petit écran. Aucun nouveau paramètre .env, migration ou changement de backend. Les mêmes commandes Compose reconstruisent le frontend après récupération de la branche à tester.

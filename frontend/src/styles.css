@@ -9,7 +9,7 @@ main { max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
 section { background: white; padding: 2rem; border-radius: .5rem; box-shadow: 0 2px 12px #153b5014; }
 form { max-width: 28rem; display: grid; gap: .5rem; }
 input { font: inherit; padding: .75rem; border: 1px solid #647581; border-radius: .25rem; width: 100%; }
-button { font: inherit; padding: .7rem 1rem; color: white; background: #145e7c; border: 1px solid #145e7c; border-radius: .25rem; cursor: pointer; }
+button { font: inherit; font-size: .95rem; line-height: 1.3; min-height: 2.25rem; padding: .5rem .75rem; color: white; background: #145e7c; border: 1px solid #145e7c; border-radius: .25rem; cursor: pointer; }
 button:disabled { opacity: .65; cursor: wait; }
 :focus-visible { outline: 3px solid #be5b00; outline-offset: 3px; }
 .field-error, [role="alert"] { color: #9c2323; }

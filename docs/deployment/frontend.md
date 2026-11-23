@@ -63,7 +63,7 @@ Ouvrir **http://127.0.0.1:4200** dans le navigateur Windows :
 1. Saisir le compte du **simulateur** (`local-user` par défaut) et `DEV_IDENTITY_PASSWORD`, distincts de SSH et PostgreSQL.
 2. Un mauvais mot de passe affiche un refus et efface le champ du mot de passe.
 3. Avec les bons identifiants, l’accueil s’affiche. Cliquer sur « Vérifier l’accès à l’API » : `authenticated` doit apparaître.
-4. Se déconnecter : retour au formulaire. Recharger après connexion déconnecte également, car le jeton reste en mémoire.
+4. Recharger la page : la session et l’URL courante sont conservées tant que le jeton reste valide. Se déconnecter puis recharger : le formulaire de connexion doit rester affiché.
 5. Après la durée configurée par `DEV_IDENTITY_TOKEN_TTL_SECONDS` (cinq minutes par défaut), la session locale expire et invite à se reconnecter.
 
 Ce parcours évite la manipulation d’identifiants dans PowerShell. Ne pas enregistrer de traces réseau ou exporter de HAR contenant mot de passe ou Bearer.
@@ -78,9 +78,13 @@ Ce parcours évite la manipulation d’identifiants dans PowerShell. Ne pas enre
 
 Les appels utilisent la même origine : aucun CORS global ni modification de la validation JWT Spring. Le proxy d’identité n’expose pas ses autres routes. Nginx fonctionne sans root, sans capacités supplémentaires, avec système de fichiers en lecture seule et répertoire temporaire en mémoire.
 
-Le jeton est conservé uniquement en mémoire, sans localStorage, sessionStorage ou cookie. L’interceptor n’ajoute le Bearer qu’à la même origine et au préfixe `/api/`, jamais aux tiers ou à l’identité. Les chemins ambigus sont exclus. Les guards facilitent la navigation ; le backend reste l’autorité d’autorisation.
+Le jeton est utilisé en mémoire et conservé dans `sessionStorage` pour restaurer la session du même onglet après rafraîchissement. Ni mot de passe, ni `localStorage`, ni cookie d’authentification ne sont utilisés. L’interceptor n’ajoute le Bearer qu’à la même origine et au préfixe `/api/`, jamais aux tiers ou à l’identité. Les chemins ambigus sont exclus. Les guards facilitent la navigation ; le backend reste l’autorité d’autorisation.
 
 La durée se configure uniquement côté simulateur via `DEV_IDENTITY_TOKEN_TTL_SECONDS` dans `.env` : entier de 1 à 86400 secondes, 300 par défaut si absent ou vide. Exemple : `DEV_IDENTITY_TOKEN_TTL_SECONDS=1800` pour 30 minutes. Recréer le conteneur identité puis l’API après modification, selon les commandes de la section « Durée des jetons du simulateur » du README, et se reconnecter. Le redémarrage du simulateur change sa clé éphémère ; la recréation de l’API vide son cache JWKS. Les jetons existants ne sont pas prolongés et les anciens jetons ne sont plus utilisables après cette rotation. Lors de la première mise à jour du code, reconstruire les services selon la procédure ci-dessus. En lancement natif, exporter la variable : Python ne lit pas automatiquement `.env`.
+
+La session stocke une date d’expiration absolue calculée depuis `expires_in`. Le rafraîchissement ne renouvelle jamais cette date. Au démarrage, une session expirée, corrompue ou mal formée est écartée ; déconnexion, expiration et réponse API401 effacent aussi l’enregistrement. Si le navigateur refuse le stockage, l’authentification fonctionne en mémoire mais la continuité après rafraîchissement ne peut pas être garantie.
+
+`sessionStorage` est limité à l’origine et au contexte de l’onglet. Un onglet ouvert avec un `opener` peut recevoir une copie initiale, puis les deux sessions évoluent indépendamment. La déconnexion n’est pas propagée aux autres onglets. La restauration d’onglets par le navigateur peut aussi restaurer ce stockage ; la date d’expiration absolue reste applicable. Le jeton stocké est accessible au JavaScript de cette origine : ce choix répond à la continuité demandée dans ce laboratoire et ne protège pas contre un script XSS. La validation cryptographique et les droits restent contrôlés côté Spring ; la future intégration Entra devra revoir la stratégie de session.
 
 Le client utilise `expires_in` pour la durée de session, sans prétendre valider cryptographiquement le JWT. Un `401` API efface la session ; un `403` conserve la session et explique le manque de droits. Pas de refresh automatique, pas de mot de passe conservé dans un service, aucun jeton affiché ou journalisé.
 
@@ -111,6 +115,8 @@ npm test
 
 `frontend-browser` prépare PostgreSQL et construit API, identité et frontend puis utilise Chromium/Playwright contre la vraie connexion locale et le vrai décodeur Spring. Les réponses 401/403 des tests de réaction UI sont explicitement simulées ; les connexions réussies utilisent le vrai émetteur. L’expiration par minuterie est couverte dans Angular. Traces, vidéos et captures sont désactivées afin de ne pas enregistrer les identifiants. La configuration définit aussi `PLAYWRIGHT_NO_COPY_PROMPT=1` pour empêcher la capture DOM automatique `error-context.md` de Playwright 1.58.2.
 
+Les tests navigateur vérifient aussi rafraîchissement sans reconnexion, purge d’un état expiré/corrompu et absence de retour de session après déconnexion. Le tableau est contrôlé à 390, 768 et 1280 pixels : actions compactes séparées, sans chevauchement ni débordement horizontal de la page.
+
 Les résultats réellement exécutés figurent dans la PR/CI. Une réussite en CI ne vaut pas un test sur le navigateur Windows personnel. La gestion graphique des types est décrite dans son guide ; l’attribution de droits Entra reste une étape future.
 
 ## Reprise
@@ -123,3 +129,5 @@ Arrêter le seul service frontend si nécessaire, puis retirer `compose.frontend
 - [Zoneless](https://github.com/angular/angular/blob/21.2.x/adev/src/content/guide/zoneless.md), [interceptors](https://github.com/angular/angular/blob/21.2.x/adev/src/content/guide/http/interceptors.md), [guards](https://github.com/angular/angular/blob/21.2.x/adev/src/content/guide/routing/route-guards.md) et [formulaires typés](https://github.com/angular/angular/blob/21.2.x/adev/src/content/guide/forms/typed-forms.md).
 - [Builder de tests CLI 21.2.26](https://github.com/angular/angular-cli/blob/v21.2.26/packages/angular/build/src/builders/unit-test/schema.json), Vitest/jsdom.
 - [Node 24.22.2](https://github.com/nodejs/node/releases/tag/v24.22.2) et [image Nginx sans root](https://github.com/nginx/docker-nginx-unprivileged).
+
+Référence de la décision de session : [MDN, sessionStorage](https://github.com/mdn/content/blob/main/files/en-us/web/api/window/sessionstorage/index.md), persistance aux rechargements, contexte d’onglet et limites des politiques navigateur.

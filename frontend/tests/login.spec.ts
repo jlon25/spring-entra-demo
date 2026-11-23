@@ -27,14 +27,19 @@ test('requires login and rejects wrong credentials without calling the API', asy
   expect(protectedCalls).toBe(0);
 });
 
-test('uses a real signed token, logs out and keeps no session after reload', async ({ page }) => {
+test('restores the same valid session after reload and removes it on logout', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: 'Vérifier l’accès à l’API' }).click();
   await expect(page.getByRole('status')).toContainText('authenticated');
-  expect(await page.evaluate(() => window.localStorage.length + window.sessionStorage.length)).toBe(0);
+  expect(await page.evaluate(() => window.localStorage.length)).toBe(0);
+  expect(await page.evaluate(() => window.sessionStorage.getItem('auditions.auth.session.v1') !== null)).toBe(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Accueil', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Vérifier l’accès à l’API' }).click();
+  await expect(page.getByRole('status')).toContainText('authenticated');
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page.getByRole('heading', { name: 'Connexion locale' })).toBeVisible();
-  await login(page);
+  expect(await page.evaluate(() => window.sessionStorage.getItem('auditions.auth.session.v1'))).toBeNull();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Connexion locale' })).toBeVisible();
 });
@@ -46,6 +51,9 @@ test('clears the session when the API rejects its authorization', async ({ page 
   await page.getByRole('button', { name: 'Vérifier l’accès à l’API' }).click();
   await expect(page.getByRole('heading', { name: 'Connexion locale' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('expiré');
+  expect(await page.evaluate(() => window.sessionStorage.getItem('auditions.auth.session.v1'))).toBeNull();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Connexion locale' })).toBeVisible();
 });
 
 test('keeps the session and explains a forbidden API operation', async ({ page }) => {
@@ -55,4 +63,33 @@ test('keeps the session and explains a forbidden API operation', async ({ page }
   await page.getByRole('button', { name: 'Vérifier l’accès à l’API' }).click();
   await expect(page.getByRole('alert')).toContainText('droits sont insuffisants');
   await expect(page.getByRole('heading', { name: 'Accueil', exact: true })).toBeVisible();
+});
+
+test('rejects expired persisted state before requesting a protected route', async ({ page }) => {
+  await login(page);
+  await page.evaluate(() => {
+    const key = 'auditions.auth.session.v1';
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) throw new Error('Missing test session');
+    const session = JSON.parse(raw);
+    session.expiresAt = Date.now() - 1000;
+    window.sessionStorage.setItem(key, JSON.stringify(session));
+  });
+  let protectedCalls = 0;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.startsWith('/api/')) protectedCalls++;
+  });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Connexion locale' })).toBeVisible();
+  expect(protectedCalls).toBe(0);
+  expect(await page.evaluate(() => window.sessionStorage.getItem('auditions.auth.session.v1'))).toBeNull();
+});
+
+test('discards corrupted tab storage and permits a new login', async ({ page }) => {
+  await login(page);
+  await page.evaluate(() => window.sessionStorage.setItem('auditions.auth.session.v1', '{invalid'));
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Connexion locale' })).toBeVisible();
+  expect(await page.evaluate(() => window.sessionStorage.getItem('auditions.auth.session.v1'))).toBeNull();
+  await login(page);
 });

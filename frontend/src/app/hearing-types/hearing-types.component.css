@@ -1,7 +1,7 @@
 .table-scroll { overflow-x: auto; margin-top: 1rem; }
-table { border-collapse: collapse; width: 100%; text-align: left; }
+table { border-collapse: collapse; width: 100%; min-width: 36rem; text-align: left; }
 caption { text-align: left; font-weight: 600; padding: .75rem 0; }
-th, td { padding: .75rem; border-bottom: 1px solid #ccd5dc; vertical-align: top; }
+th, td { padding: .625rem .75rem; border-bottom: 1px solid #ccd5dc; vertical-align: middle; }
 thead { background: #edf3f7; }
 .editor { margin-top: 2rem; border-top: 2px solid #ccd5dc; padding-top: 1rem; }
 fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: .5rem; }
@@ -9,3 +9,19 @@ legend { padding: .5rem 0; }
 .checkbox { display: flex; gap: .6rem; align-items: center; }
 .checkbox input { width: auto; }
 .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+
+tbody th { overflow-wrap: anywhere; }
+.actions-cell { min-width: 12.5rem; }
+.row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.row-actions button {
+  width: auto;
+  min-height: 2rem;
+  padding: .375rem .625rem;
+  font-size: .875rem;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.row-actions .button-secondary { color: #145e7c; background: #f0f7fa; border-color: #9ab9c9; }
+.row-actions .button-danger { color: #9c2323; background: white; border-color: #bc6c6c; }
+.row-actions .button-secondary:hover:not(:disabled) { background: #e2eef4; }
+.row-actions .button-danger:hover:not(:disabled) { background: #fff0f0; }

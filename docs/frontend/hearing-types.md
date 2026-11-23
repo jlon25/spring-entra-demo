@@ -21,8 +21,8 @@ Conserver `.env`, les comptes, les données et les volumes. Aucun nouveau param�
 1. Ouvrir « Types d’audition » dans la navigation, ou `/types-audition`. La liste est vide tant qu’aucun type n’a été enregistré ; elle peut déjà contenir les données fictives des essais PowerShell.
 2. Cliquer sur « Nouveau type ». Renseigner un libellé fictif, une durée entière strictement positive, une pause entière positive ou nulle, et cocher ou non « Défenseur requis ». Cliquer sur « Enregistrer ».
 3. Vérifier le type dans la liste, puis le modifier. Une pause de zéro doit être acceptée. Durée nulle, pause négative ou valeur décimale doivent être refusées.
-4. Recharger le navigateur, se reconnecter puis rouvrir la liste : les données doivent être retrouvées dans PostgreSQL.
-5. Pour un conflit, ouvrir la même fiche dans deux onglets, avec une connexion dans chaque onglet (session en mémoire seulement). Enregistrer une première modification, puis essayer d’enregistrer l’autre ancienne version. Le second enregistrement doit être refusé sans écraser la première modification.
+4. Recharger le navigateur sans se reconnecter : tant que la session est valide, la liste est rechargée à la même adresse : les données doivent être retrouvées dans PostgreSQL.
+5. Pour un conflit, ouvrir la même fiche dans deux onglets, avec une session valide dans chaque onglet (stockage de session séparé). Enregistrer une première modification, puis essayer d’enregistrer l’autre ancienne version. Le second enregistrement doit être refusé sans écraser la première modification.
 6. Vérifier que le brouillon reste visible après ce refus. « Recharger la version serveur » remplace explicitement la saisie par la version actuelle ; réappliquer ensuite les changements souhaités et enregistrer.
 
 Ces essais créent et modifient des données fictives persistantes. Pour retirer une donnée fictive, utiliser le bouton « Supprimer » et confirmer explicitement.
@@ -52,3 +52,9 @@ Cliquer sur « Supprimer » dans la ligne concernée. L’écran affiche son lib
 Après un 409 (modification concurrente) ou 404 (type déjà absent), aucune nouvelle suppression n’est envoyée automatiquement. Utiliser « Recharger les types », vérifier la ligne actuelle, puis redemander et confirmer la suppression si elle est toujours souhaitée. Un refus 403 conserve la confirmation et explique le manque de droits. La saisie d’un autre type reste conservée ; si le type supprimé était en cours d’édition, son formulaire est fermé.
 
 Pour cette mise à jour, reconstruire les quatre services avec les commandes ci-dessus : Flyway applique V3 au démarrage de l’API sur le volume existant. Sauvegarder la base avant des essais de suppression importants. Aucun effacement de volume, reset de base ou changement de .env n’est nécessaire.
+
+## Rafraîchissement et disposition du tableau
+
+Une session valide est restaurée depuis le stockage de l’onglet au rechargement, sans prolonger sa date d’expiration. Les types sont relus depuis PostgreSQL ; les brouillons non enregistrés et les confirmations de suppression ne sont pas persistés. Après expiration, déconnexion ou refus401 de l’API, une nouvelle connexion reste nécessaire.
+
+Les actions « Modifier » et « Supprimer » sont regroupées avec un espace fixe et des boutons compacts. Elles peuvent revenir à la ligne sans se toucher ; « Supprimer » possède aussi un contour rouge et conserve son libellé explicite. Sur petit écran, le tableau défile dans son propre conteneur sans élargir toute la page. Les contrôles clavier et la confirmation de suppression restent disponibles.
