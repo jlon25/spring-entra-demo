@@ -20,25 +20,37 @@
         <table>
           <caption>Référentiel des types d’audition</caption>
           <thead><tr>
-            <th scope="col">Libellé</th><th scope="col">Durée (minutes)</th>
-            <th scope="col">Pause (minutes)</th><th scope="col">Défenseur</th>
+            <th scope="col">Libellé</th><th class="detail-column" scope="col">Durée (minutes)</th>
+            <th class="detail-column" scope="col">Pause (minutes)</th><th class="detail-column" scope="col">Défenseur</th>
             @if (auth.hasScope('hearing-types.write')) { <th scope="col">Actions</th> }
           </tr></thead>
           <tbody>
             @for (type of types(); track type.id) {
               <tr>
                 <th scope="row">{{ type.label }}</th>
-                <td>{{ type.durationMinutes }}</td><td>{{ type.pauseMinutes }}</td>
-                <td>{{ type.defenderRequired ? 'Requis' : 'Non requis' }}</td>
+                <td class="detail-column">{{ type.durationMinutes }}</td><td class="detail-column">{{ type.pauseMinutes }}</td>
+                <td class="detail-column">{{ type.defenderRequired ? 'Requis' : 'Non requis' }}</td>
                 @if (auth.hasScope('hearing-types.write')) {
                   <td class="actions-cell">
                     <div class="row-actions">
                       <button type="button" class="button-secondary" (click)="edit(type, $event)"
                         [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
-                        [attr.aria-label]="'Modifier ' + type.label">Modifier</button>
+                        [attr.aria-label]="'Modifier ' + type.label" [attr.title]="'Modifier ' + type.label">
+                        <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+                          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="m16 3 5 5-12 12-6 1 1-6Z" /><path d="m14 5 5 5" />
+                        </svg>
+                        <span class="action-label">Modifier</span>
+                      </button>
                       <button type="button" class="button-danger" (click)="requestDeletion(type, $event)"
                         [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
-                        [attr.aria-label]="'Supprimer ' + type.label">Supprimer</button>
+                        [attr.aria-label]="'Supprimer ' + type.label" [attr.title]="'Supprimer ' + type.label">
+                        <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+                          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
+                        </svg>
+                        <span class="action-label">Supprimer</span>
+                      </button>
                     </div>
                   </td>
                 }

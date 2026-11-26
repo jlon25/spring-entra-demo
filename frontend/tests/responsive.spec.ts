@@ -46,7 +46,7 @@ test('keeps the login readable without horizontal page scrolling from mobile to 
   }
 });
 
-test('uses desktop space and contains table scrolling while navigation remains keyboard accessible', async ({ page }) => {
+test('uses desktop space and keeps the compact mobile table within the page', async ({ page }) => {
   const label = 'Fictitious-responsive-' + 'LongLabel'.repeat(10);
   await page.route('**/api/hearing-types', async route => {
     if (route.request().method() === 'GET') {
@@ -88,11 +88,9 @@ test('uses desktop space and contains table scrolling while navigation remains k
 
   await page.setViewportSize({ width: 320, height: 900 });
   const scrollArea = page.locator('.table-scroll');
-  expect(await scrollArea.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  expect(await scrollArea.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await scrollArea.focus();
   await expect(scrollArea).toBeFocused();
-  await page.keyboard.press('ArrowRight');
-  await expect.poll(() => scrollArea.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
   await expectNoPageOverflow(page);
   await typesLink.focus();
   await page.keyboard.press('Tab');
@@ -137,4 +135,82 @@ test('provides comfortable touch targets without hiding navigation or row action
   } finally {
     await context.close();
   }
+});
+
+
+test('shows only labels and named icon actions on mobile while retaining full desktop columns', async ({ page }) => {
+  const label = 'Fictitious mobile label ' + 'LongWord'.repeat(8);
+  await page.route('**/api/hearing-types', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ json: [{
+        id: 'mobile-columns-ui-only', label, durationMinutes: 75,
+        pauseMinutes: 15, defenderRequired: true, version: 2
+      }] });
+    } else await route.continue();
+  });
+  let writes = 0;
+  page.on('request', request => {
+    if (['POST', 'PUT', 'DELETE'].includes(request.method())
+        && new URL(request.url()).pathname.startsWith('/api/hearing-types')) writes++;
+  });
+  await login(page);
+  await page.getByRole('link', { name: 'Types d’audition', exact: true }).click();
+  const table = page.getByRole('table');
+  const edit = page.getByRole('button', { name: 'Modifier ' + label, exact: true });
+  const remove = page.getByRole('button', { name: 'Supprimer ' + label, exact: true });
+  for (const width of [320, 390, 640, 641, 768, 1920, 390]) {
+    const mobile = width <= 640;
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.getByRole('rowheader', { name: label, exact: true })).toBeVisible();
+    await expect(table.getByRole('columnheader')).toHaveCount(mobile ? 2 : 5);
+    for (const name of ['Durée (minutes)', 'Pause (minutes)', 'Défenseur']) {
+      const column = table.getByRole('columnheader', { name, exact: true, includeHidden: true });
+      if (mobile) await expect(column).toBeHidden();
+      else await expect(column).toBeVisible();
+    }
+    for (const [action, text] of [[edit, 'Modifier'], [remove, 'Supprimer']] as const) {
+      await expect(action).toBeVisible();
+      await expect(action).toHaveAccessibleName(text + ' ' + label);
+      const caption = action.getByText(text, { exact: true });
+      const icon = action.locator('svg');
+      await expect(icon).toHaveAttribute('aria-hidden', 'true');
+      await expect(icon).toHaveAttribute('focusable', 'false');
+      if (mobile) {
+        await expect(caption).toBeHidden();
+        await expect(icon).toBeVisible();
+        const box = await action.boundingBox();
+        if (!box) throw new Error('Mobile icon action is not rendered');
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+      } else {
+        await expect(caption).toBeVisible();
+        await expect(icon).toBeVisible();
+      }
+    }
+    await expectNoPageOverflow(page);
+    expect(await page.locator('.table-scroll').evaluate(element =>
+      element.scrollWidth <= element.clientWidth + 1
+    )).toBe(true);
+  }
+  // The icon-only controls still support keyboard operation and reveal the
+  // hidden list details in the existing editor without changing those values.
+  await edit.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toHaveAccessibleName('Modifier un type');
+  await expect(dialog.getByLabel('Libellé', { exact: true })).toBeFocused();
+  await expect(dialog.getByLabel('Durée (minutes)', { exact: true })).toHaveValue('75');
+  await expect(dialog.getByLabel('Pause minimale (minutes)', { exact: true })).toHaveValue('15');
+  await expect(dialog.getByLabel('Défenseur requis', { exact: true })).toBeChecked();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(edit).toBeFocused();
+  await remove.focus();
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Annuler la suppression', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(remove).toBeFocused();
+  expect(writes).toBe(0);
 });

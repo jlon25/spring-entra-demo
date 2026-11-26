@@ -57,7 +57,11 @@ Pour cette mise à jour, reconstruire les quatre services avec les commandes ci-
 
 Une session valide est restaurée depuis le stockage de l’onglet au rechargement, sans prolonger sa date d’expiration. Les types sont relus depuis PostgreSQL ; les brouillons non enregistrés et les confirmations de suppression ne sont pas persistés. Après expiration, déconnexion ou refus401 de l’API, une nouvelle connexion reste nécessaire.
 
-Les actions « Modifier » et « Supprimer » sont regroupées avec un espace fixe et des boutons compacts. Elles peuvent revenir à la ligne sans se toucher ; « Supprimer » possède aussi un contour rouge et conserve son libellé explicite. Sur petit écran, le tableau défile dans son propre conteneur sans élargir toute la page. Les contrôles clavier et la confirmation de suppression restent disponibles.
+Sur écran de plus de 40 rem (640 pixels CSS avec la taille de police par défaut), le tableau affiche toutes les colonnes et les boutons avec icône et texte, afin d’associer chaque symbole à son action. À 40 rem ou moins, la liste affiche uniquement le libellé et les actions autorisées : crayon pour modifier, poubelle pour supprimer. Les colonnes Durée, Pause et Défenseur sont masquées dans cette présentation mobile, sans suppression de données. Les boutons gardent des noms accessibles complets (« Modifier [libellé] », « Supprimer [libellé] »), des cibles d’au moins 44 × 44 pixels CSS et un espacement de 8 pixels ; les icônes sont décoratives pour les lecteurs d’écran.
+
+Les valeurs restent dans le formulaire modal d’édition pour les comptes ayant le droit d’écriture. Un compte en lecture seule conserve uniquement le libellé dans la liste mobile ; agrandir la fenêtre permet de consulter les autres colonnes, sans lui accorder de droit d’édition. Aucun sélecteur de colonnes ni nouvelle permission n’est ajouté. Les contrôles clavier, la confirmation explicite de suppression et le contrôle des modifications concurrentes sont conservés.
+
+Vérifier à 320 et 390 pixels CSS : libellés longs lisibles, deux icônes identifiables sans défilement horizontal de la liste, ouverture des modales et retour du focus après annulation. Vérifier aussi à 768 pixels et sur bureau le retour de toutes les colonnes et des textes des actions. Les tests unitaires ne démontrent pas la visibilité CSS ; les dimensions et états responsive doivent être contrôlés dans un navigateur.
 
 ## Formulaires en fenêtres modales
 

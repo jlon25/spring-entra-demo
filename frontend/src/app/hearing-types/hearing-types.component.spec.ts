@@ -58,6 +58,32 @@ describe('Hearing types page with simulated HTTP responses', () => {
     expect(fixture.nativeElement.querySelector('caption').textContent).toContain('Référentiel');
   });
 
+
+  it('keeps explicit names on icon actions and decorates their SVGs without changing the actions', async () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([row]);
+    await fixture.whenStable();
+    for (const action of ['Modifier', 'Supprimer']) {
+      const button = fixture.nativeElement.querySelector('[aria-label="' + action + ' Type fictif"]') as HTMLButtonElement;
+      expect(button).not.toBeNull();
+      expect(button.type).toBe('button');
+      expect(button.title).toBe(action + ' Type fictif');
+      expect(button.querySelector('.action-label')?.textContent).toBe(action);
+      const icon = button.querySelector('svg');
+      expect(icon?.getAttribute('aria-hidden')).toBe('true');
+      expect(icon?.getAttribute('focusable')).toBe('false');
+    }
+    // CSS visibility and mobile dimensions are verified by real browser tests.
+    const edit = fixture.nativeElement.querySelector('[aria-label="Modifier Type fictif"]') as HTMLButtonElement;
+    edit.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.form.controls.durationMinutes.value).toBe(60);
+    expect(fixture.componentInstance.form.controls.pauseMinutes.value).toBe(15);
+    expect(fixture.componentInstance.form.controls.defenderRequired.value).toBe(true);
+    http.expectNone(request => request.method === 'PUT' || request.method === 'DELETE');
+  });
+
   it('distinguishes a read refusal from network unavailability and permits retry', () => {
     const page = component();
     page.load();

@@ -206,10 +206,12 @@ test('keeps compact row actions separated on desktop, tablet and mobile', async 
     const a = await edit.boundingBox();
     const b = await remove.boundingBox();
     if (!a || !b) throw new Error('Row action is not rendered');
-    expect(a.height).toBeGreaterThanOrEqual(32);
-    expect(a.height).toBeLessThanOrEqual(36);
-    expect(b.height).toBeGreaterThanOrEqual(32);
-    expect(b.height).toBeLessThanOrEqual(36);
+    const minimumHeight = width <= 640 ? 44 : 32;
+    const maximumHeight = width <= 640 ? 45 : 36;
+    expect(a.height).toBeGreaterThanOrEqual(minimumHeight);
+    expect(a.height).toBeLessThanOrEqual(maximumHeight);
+    expect(b.height).toBeGreaterThanOrEqual(minimumHeight);
+    expect(b.height).toBeLessThanOrEqual(maximumHeight);
     const gap = Math.max(b.x - a.x - a.width, a.x - b.x - b.width,
       b.y - a.y - a.height, a.y - b.y - b.height);
     expect(gap).toBeGreaterThanOrEqual(7);
