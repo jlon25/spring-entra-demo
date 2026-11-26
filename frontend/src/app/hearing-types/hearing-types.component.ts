@@ -42,9 +42,14 @@ export class HearingTypesComponent implements OnInit {
   private readonly api = inject(HearingTypesService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
+  @ViewChild('editorDialog') private editorDialog?: ElementRef<HTMLDialogElement>;
+  @ViewChild('deleteDialog') private deleteDialog?: ElementRef<HTMLDialogElement>;
+  @ViewChild('deleteCancel') private deleteCancel?: ElementRef<HTMLButtonElement>;
+  private editorTrigger: HTMLElement | null = null;
+  private deletionTrigger: HTMLElement | null = null;
   @ViewChild('deleteTitle') private deleteTitle?: ElementRef<HTMLElement>;
   @ViewChild('listTitle') private listTitle?: ElementRef<HTMLElement>;
-  @ViewChild('editorTitle') private editorTitle?: ElementRef<HTMLElement>;
+  @ViewChild('editorInput') private editorInput?: ElementRef<HTMLInputElement>;
   @ViewChild('errorSummary') private errorSummary?: ElementRef<HTMLElement>;
   readonly types = signal<HearingType[]>([]);
   readonly loading = signal(false);
@@ -82,16 +87,18 @@ export class HearingTypesComponent implements OnInit {
     });
   }
 
-  create(): void {
+  create(event?: Event): void {
     if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.deleting() || this.deletion() !== null) return;
+    this.editorTrigger = this.activeElement(event);
     this.clearFeedback();
     this.editor.set({ id: null, version: null });
     this.form.reset({ label: '', durationMinutes: null, pauseMinutes: null, defenderRequired: false });
     this.focusEditor();
   }
 
-  edit(type: HearingType): void {
+  edit(type: HearingType, event?: Event): void {
     if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
+    this.editorTrigger = this.activeElement(event);
     this.clearFeedback();
     this.setEditor(type);
     this.focusEditor();
@@ -99,7 +106,7 @@ export class HearingTypesComponent implements OnInit {
 
   cancel(): void {
     if (this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
-    this.editor.set(null);
+    this.closeEditor();
     this.clearFeedback();
   }
 
@@ -131,7 +138,7 @@ export class HearingTypesComponent implements OnInit {
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: saved => {
-        this.editor.set(null);
+        this.closeEditor();
         this.conflict.set(false);
         this.status.set('Type « ' + saved.label + ' » enregistré.');
         this.load();
@@ -173,21 +180,25 @@ export class HearingTypesComponent implements OnInit {
     });
   }
 
-  requestDeletion(type: HearingType): void {
+  requestDeletion(type: HearingType, event?: Event): void {
     if (!this.auth.hasScope('hearing-types.write') || this.deleting() || this.deletion()
         || this.saving() || this.reloading() || this.loading()) return;
+    this.deletionTrigger = this.activeElement(event);
     this.deleteError.set('');
     this.deleteBlocked.set(false);
     this.deletion.set({ ...type });
-    afterNextRender(() => this.deleteTitle?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => {
+      const dialog = this.deleteDialog?.nativeElement;
+      if (dialog && !dialog.open) dialog.showModal();
+      this.deleteCancel?.nativeElement.focus();
+    }, { injector: this.injector });
   }
 
   cancelDeletion(): void {
     if (this.deleting()) return;
-    this.deletion.set(null);
+    this.closeDeletion();
     this.deleteError.set('');
     this.deleteBlocked.set(false);
-    afterNextRender(() => this.listTitle?.nativeElement.focus(), { injector: this.injector });
   }
 
   confirmDeletion(): void {
@@ -201,14 +212,13 @@ export class HearingTypesComponent implements OnInit {
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: () => {
-        this.deletion.set(null);
+        this.closeDeletion();
         if (this.editor()?.id === target.id) {
-          this.editor.set(null);
+          this.closeEditor();
           this.clearFeedback();
         }
         this.status.set('Type « ' + target.label + ' » supprimé.');
         this.load();
-        afterNextRender(() => this.listTitle?.nativeElement.focus(), { injector: this.injector });
       },
       error: (failure: unknown) => {
         if (failure instanceof HttpErrorResponse && (failure.status === 409 || failure.status === 404)) {
@@ -282,8 +292,49 @@ export class HearingTypesComponent implements OnInit {
     return result;
   }
 
+  cancelEditorDialog(event: Event): void {
+    event.preventDefault();
+    this.cancel();
+  }
+
+  cancelDeleteDialog(event: Event): void {
+    event.preventDefault();
+    this.cancelDeletion();
+  }
+
+  private activeElement(event?: Event): HTMLElement | null {
+    if (event?.currentTarget instanceof HTMLElement) return event.currentTarget;
+    const active = this.listTitle?.nativeElement.ownerDocument.activeElement;
+    return active instanceof HTMLElement ? active : null;
+  }
+
+  private restoreFocus(trigger: HTMLElement | null): void {
+    afterNextRender(() => {
+      if (trigger?.isConnected && !trigger.matches(':disabled')) trigger.focus();
+      else this.listTitle?.nativeElement.focus();
+    }, { injector: this.injector });
+  }
+
+  private closeEditor(): void {
+    this.editorDialog?.nativeElement.close();
+    this.editor.set(null);
+    this.restoreFocus(this.editorTrigger);
+    this.editorTrigger = null;
+  }
+
+  private closeDeletion(): void {
+    this.deleteDialog?.nativeElement.close();
+    this.deletion.set(null);
+    this.restoreFocus(this.deletionTrigger);
+    this.deletionTrigger = null;
+  }
+
   private focusEditor(): void {
-    afterNextRender(() => this.editorTitle?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => {
+      const dialog = this.editorDialog?.nativeElement;
+      if (dialog && !dialog.open) dialog.showModal();
+      this.editorInput?.nativeElement.focus();
+    }, { injector: this.injector });
   }
 
   private focusError(): void {

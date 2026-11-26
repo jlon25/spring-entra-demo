@@ -16,6 +16,14 @@ describe('Hearing types page with simulated HTTP responses', () => {
   let http: HttpTestingController;
   const permissions = { hasScope: vi.fn(() => true) };
   beforeEach(() => {
+    // jsdom does not implement native modal focus trapping/top-layer behavior.
+    // These stand-ins cover component state only; Playwright covers browser semantics.
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+      configurable: true, value: vi.fn(function(this: HTMLDialogElement) { this.open = true; })
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+      configurable: true, value: vi.fn(function(this: HTMLDialogElement) { this.open = false; })
+    });
     permissions.hasScope.mockReset().mockReturnValue(true);
     TestBed.configureTestingModule({
       imports: [HearingTypesComponent],
@@ -23,7 +31,7 @@ describe('Hearing types page with simulated HTTP responses', () => {
     });
     http = TestBed.inject(HttpTestingController);
   });
-  afterEach(() => http.verify());
+  afterEach(() => { http.verify(); vi.restoreAllMocks(); });
 
   function component(): HearingTypesComponent {
     const fixture = TestBed.createComponent(HearingTypesComponent);
@@ -260,4 +268,69 @@ describe('Hearing types page with simulated HTTP responses', () => {
     expect(page.editor()).toBeNull();
     http.expectNone(path + '/' + row.id);
   });
+  it('opens an accessible editor dialog and cancels it without a write', async () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([row]);
+    await fixture.whenStable();
+    const trigger = fixture.nativeElement.querySelector('[aria-label="Modifier Type fictif"]') as HTMLButtonElement;
+    trigger.click();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(dialog.getAttribute('aria-labelledby')).toBe('editor-title');
+    expect(dialog.textContent).not.toContain('Version lue');
+    expect(document.activeElement).toBe(dialog.querySelector('#type-label'));
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    http.expectNone(request => request.method === 'PUT' || request.method === 'DELETE');
+  });
+
+  it('keeps the editor open on Escape while a write is pending', async () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([]);
+    fixture.componentInstance.create();
+    await fixture.whenStable();
+    valid(fixture.componentInstance);
+    fixture.componentInstance.save();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    const cancel = new Event('cancel', { cancelable: true });
+    dialog.dispatchEvent(cancel);
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(fixture.componentInstance.editor()).not.toBeNull();
+    expect(dialog.open).toBe(true);
+    http.expectOne(path).flush({ ...row, version: 0 });
+    http.expectOne(path).flush([]);
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('dialog')).toBeNull();
+  });
+
+  it('focuses the safe deletion action and refuses Escape during deletion', async () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([row]);
+    await fixture.whenStable();
+    const trigger = fixture.nativeElement.querySelector('[aria-label="Supprimer Type fictif"]') as HTMLButtonElement;
+    trigger.click();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(document.activeElement?.textContent).toBe('Annuler la suppression');
+    fixture.componentInstance.confirmDeletion();
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    expect(fixture.componentInstance.deletion()?.id).toBe(row.id);
+    http.expectOne(path + '/' + row.id + '?version=2')
+      .flush({}, { status: 403, statusText: 'Forbidden' });
+    await fixture.whenStable();
+    expect(dialog.open).toBe(true);
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
 });
