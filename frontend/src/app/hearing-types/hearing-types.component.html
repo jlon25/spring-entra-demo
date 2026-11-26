@@ -50,7 +50,7 @@
     }
   </div>
   @if (deletion(); as target) {
-    <dialog #deleteDialog class="type-dialog delete-dialog" aria-labelledby="delete-title"
+    <dialog #deleteDialog class="type-dialog delete-dialog" tabindex="-1" (keydown)="trapDialogFocus($event)" aria-labelledby="delete-title"
       aria-describedby="delete-description" [attr.aria-busy]="deleting()" (cancel)="cancelDeleteDialog($event)">
       <h2 #deleteTitle id="delete-title" tabindex="-1">Supprimer le type « {{ target.label }} » ?</h2>
       <p id="delete-description">Cette suppression est définitive. Vérifiez le type avant de confirmer.</p>
@@ -65,7 +65,7 @@
     </dialog>
   }
   @if (editor(); as current) {
-    <dialog #editorDialog class="type-dialog editor" aria-labelledby="editor-title"
+    <dialog #editorDialog class="type-dialog editor" tabindex="-1" (keydown)="trapDialogFocus($event)" aria-labelledby="editor-title"
       (cancel)="cancelEditorDialog($event)">
       <h2 #editorTitle id="editor-title" tabindex="-1">{{ current.id === null ? 'Créer un type' : 'Modifier un type' }}</h2>
       @if (status()) { <p role="status">{{ status() }}</p> }

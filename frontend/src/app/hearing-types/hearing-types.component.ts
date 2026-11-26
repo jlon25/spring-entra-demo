@@ -292,6 +292,36 @@ export class HearingTypesComponent implements OnInit {
     return result;
   }
 
+  trapDialogFocus(event: KeyboardEvent): void {
+    if (event.key !== 'Tab' || !(event.currentTarget instanceof HTMLDialogElement)) return;
+    const dialog = event.currentTarget;
+    const controls = Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button, input, select, textarea, a[href], [tabindex]'
+    )).filter(control => {
+      const style = getComputedStyle(control);
+      return control.tabIndex >= 0 && !control.matches(':disabled')
+        && control.closest('[hidden], [inert]') === null
+        && style.display !== 'none' && style.visibility !== 'hidden';
+    });
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    const active = dialog.ownerDocument.activeElement;
+    if (!first || !last) {
+      event.preventDefault();
+      dialog.focus();
+    } else if (!controls.some(control => control === active)) {
+      // Error summaries and the dialog itself receive programmatic focus.
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   cancelEditorDialog(event: Event): void {
     event.preventDefault();
     this.cancel();

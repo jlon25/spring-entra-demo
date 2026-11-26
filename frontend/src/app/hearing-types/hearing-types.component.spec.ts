@@ -333,4 +333,44 @@ describe('Hearing types page with simulated HTTP responses', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it('cycles Tab boundaries, excludes disabled controls and handles summary focus', async () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([]);
+    fixture.componentInstance.create();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    const first = dialog.querySelector('#type-label') as HTMLInputElement;
+    const last = Array.from(dialog.querySelectorAll('button')).find(button => button.textContent === 'Annuler')!;
+    first.focus();
+    const backwards = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+    first.dispatchEvent(backwards);
+    expect(backwards.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(last);
+    const forwards = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    last.dispatchEvent(forwards);
+    expect(forwards.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(first);
+
+    // Invalid input moves focus to a summary outside the sequential tab order.
+    fixture.componentInstance.save();
+    await fixture.whenStable();
+    const summary = dialog.querySelector('[role="alert"]') as HTMLElement;
+    expect(document.activeElement).toBe(summary);
+    summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+    expect(document.activeElement).toBe(first);
+
+    // All inputs/buttons inherit disabled from the fieldset during a write.
+    valid(fixture.componentInstance);
+    fixture.componentInstance.save();
+    await fixture.whenStable();
+    dialog.focus();
+    const busyTab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    dialog.dispatchEvent(busyTab);
+    expect(busyTab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(dialog);
+    http.expectOne(path).flush({ ...row, version: 0 });
+    http.expectOne(path).flush([]);
+  });
+
 });
