@@ -1,20 +1,59 @@
-:root { font-family: system-ui, sans-serif; color: #172b3a; background: #f4f7fa; }
+:root {
+  font-family: system-ui, sans-serif;
+  color: #172b3a;
+  background: #f4f7fa;
+  --page-max-width: 100rem;
+  --page-gutter: clamp(.75rem, 2vw, 2rem);
+}
 * { box-sizing: border-box; }
-body { margin: 0; }
-header { background: #153b50; color: white; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-.brand { font-weight: 700; font-size: 1.15rem; }
-nav { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
-nav a { color: white; }
-main { max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
-section { background: white; padding: 2rem; border-radius: .5rem; box-shadow: 0 2px 12px #153b5014; }
-form { max-width: 28rem; display: grid; gap: .5rem; }
-input { font: inherit; padding: .75rem; border: 1px solid #647581; border-radius: .25rem; width: 100%; }
+body { margin: 0; line-height: 1.5; }
+app-root { display: block; min-width: 0; }
+header { background: #153b50; color: white; }
+.header-inner, main, footer {
+  width: min(calc(100% - 2 * var(--page-gutter)), var(--page-max-width));
+  margin-inline: auto;
+  min-width: 0;
+}
+.header-inner {
+  padding-block: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem 1.5rem;
+}
+.brand { font-weight: 700; font-size: 1.15rem; overflow-wrap: anywhere; }
+nav { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; min-width: 0; }
+nav a {
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding-block: .375rem;
+}
+main { margin-block: clamp(1rem, 3vw, 2rem); }
+section {
+  min-width: 0;
+  background: white;
+  padding: clamp(1rem, 2vw, 2rem);
+  border-radius: .5rem;
+  box-shadow: 0 2px 12px #153b5014;
+}
+h1, h2, p, label, footer { overflow-wrap: anywhere; }
+section > p { max-width: 75ch; }
+.login-panel { width: 100%; max-width: 32rem; margin-inline: auto; }
+form { width: 100%; max-width: 28rem; min-width: 0; display: grid; gap: .5rem; }
+fieldset { min-width: 0; }
+input { font: inherit; padding: .75rem; border: 1px solid #647581; border-radius: .25rem; width: 100%; min-width: 0; }
 button { font: inherit; font-size: .95rem; line-height: 1.3; min-height: 2.25rem; padding: .5rem .75rem; color: white; background: #145e7c; border: 1px solid #145e7c; border-radius: .25rem; cursor: pointer; }
 button:disabled { opacity: .65; cursor: wait; }
 :focus-visible { outline: 3px solid #be5b00; outline-offset: 3px; }
 .field-error, [role="alert"] { color: #9c2323; }
 .field-error { min-height: 1.25rem; margin: 0 0 .5rem; }
-footer { max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #425868; }
+footer { margin-block: 2rem; color: #425868; }
 .skip-link { position: absolute; left: 1rem; top: -6rem; background: white; color: #172b3a; padding: .75rem; z-index: 10; }
 .skip-link:focus { top: 1rem; }
-@media (max-width: 500px) { header { padding: 1rem; } section { padding: 1.25rem; } }
+@media (pointer: coarse) {
+  /* Accessibility floor also applies to compact, component-scoped row actions. */
+  button, nav a { min-height: 2.75rem !important; min-width: 2.75rem; }
+}
