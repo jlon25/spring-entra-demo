@@ -62,6 +62,7 @@ async function login(page: Page, language: Language): Promise<void> {
   await page.getByLabel(text.password, { exact: true }).fill(password!);
   await page.getByRole('button', { name: text.submit, exact: true }).click();
   await expect(page.getByRole('heading', { name: text.home, exact: true })).toBeVisible();
+  await expect(page).toHaveTitle(text.title);
 }
 
 function writeResponse(page: Page, method: 'POST' | 'PUT' | 'DELETE'): Promise<Response> {
@@ -116,13 +117,17 @@ test('switches all three languages without another login or extending the sessio
     await changeLanguage(page, language);
     await page.getByRole('link', { name: text.types, exact: true }).click();
     await expect(page.getByRole('heading', { name: text.types, exact: true })).toBeVisible();
+    await expect(page).toHaveTitle(text.title);
     await page.getByRole('link', { name: text.home, exact: true }).click();
+    await expect(page.getByRole('heading', { name: text.home, exact: true })).toBeVisible();
+    await expect(page).toHaveTitle(text.title);
     await page.getByRole('button', { name: text.checkApi, exact: true }).click();
     await expect(page.getByRole('status')).toContainText('authenticated');
     expect(await sessionExpiry(page)).toBe(expiresAt);
   }
   await page.reload();
   await expect(page.getByRole('heading', { name: copy.it.home, exact: true })).toBeVisible();
+  await expect(page).toHaveTitle(copy.it.title);
   expect(await sessionExpiry(page)).toBe(expiresAt);
   expect(tokenRequests).toBe(1);
   // Local storage contains only the UI preference; authentication stays tab-scoped.
@@ -163,6 +168,7 @@ for (const language of ['de', 'it'] as const) {
     expect((await updated).status()).toBe(200);
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', language);
+    await expect(page).toHaveTitle(text.title);
     await page.getByRole('button', { name: editName(language, label), exact: true }).click();
     await expect(page.getByLabel(text.duration, { exact: true })).toHaveValue('75');
     await expect(page.getByLabel(text.label, { exact: true })).toHaveValue(label);
