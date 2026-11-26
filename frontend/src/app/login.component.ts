@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize, tap } from 'rxjs';
 import { AuthService, TokenResponse } from './auth.service';
+import { I18nService, type LocalizedMessage } from './i18n/i18n.service';
 
 @Component({
   selector: 'app-login',
@@ -12,33 +13,33 @@ import { AuthService, TokenResponse } from './auth.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="login-panel" aria-labelledby="login-title">
-      <h1 id="login-title">Connexion locale</h1>
-      <p>Utilisez le compte du simulateur de développement.</p>
+      <h1 id="login-title">{{ i18n.t('login.title') }}</h1>
+      <p>{{ i18n.t('login.intro') }}</p>
       @if (auth.expired()) {
-        <p role="status">Votre session a expiré. Connectez-vous à nouveau.</p>
+        <p role="status">{{ i18n.t('login.expired') }}</p>
       }
       <form [formGroup]="form" (ngSubmit)="submit()" [attr.aria-busy]="busy()">
-        <label for="username">Nom d’utilisateur</label>
+        <label for="username">{{ i18n.t('login.username') }}</label>
         <input id="username" formControlName="username" autocomplete="username"
           [readOnly]="busy()" aria-describedby="username-error"
           [attr.aria-invalid]="form.controls.username.touched && form.controls.username.invalid">
         <p id="username-error" class="field-error">
           @if (form.controls.username.touched && form.controls.username.invalid) {
-            Renseignez un nom d’utilisateur (128 caractères maximum).
+            {{ i18n.t('login.usernameRequired') }}
           }
         </p>
-        <label for="password">Mot de passe</label>
+        <label for="password">{{ i18n.t('login.password') }}</label>
         <input id="password" formControlName="password" type="password"
           autocomplete="current-password" [readOnly]="busy()" aria-describedby="password-error"
           [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid">
         <p id="password-error" class="field-error">
           @if (form.controls.password.touched && form.controls.password.invalid) {
-            Renseignez le mot de passe du simulateur.
+            {{ i18n.t('login.passwordRequired') }}
           }
         </p>
         @if (error()) { <p role="alert">{{ error() }}</p> }
         <button type="submit" [disabled]="busy()">
-          {{ busy() ? 'Connexion en cours…' : 'Se connecter' }}
+          {{ i18n.t(busy() ? 'login.busy' : 'login.submit') }}
         </button>
       </form>
     </section>
@@ -46,11 +47,13 @@ import { AuthService, TokenResponse } from './auth.service';
 })
 export class LoginComponent {
   readonly auth = inject(AuthService);
+  readonly i18n = inject(I18nService);
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   readonly busy = signal(false);
-  readonly error = signal('');
+  private readonly errorMessage = signal<LocalizedMessage | null>(null);
+  readonly error = computed(() => this.i18n.message(this.errorMessage()));
   readonly form = new FormGroup({
     username: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(128)] }),
     password: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(1024)] })
@@ -58,7 +61,7 @@ export class LoginComponent {
 
   submit(): void {
     if (this.busy()) return;
-    this.error.set('');
+    this.errorMessage.set(null);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -76,10 +79,9 @@ export class LoginComponent {
       next: () => { void this.router.navigate(['/accueil']); },
       error: (error: unknown) => {
         const status = error instanceof HttpErrorResponse ? error.status : -1;
-        this.error.set(status === 401 ? 'Nom d’utilisateur ou mot de passe incorrect.'
-          : status === 403 ? 'La connexion à ce service est refusée.'
-          : status === 0 ? 'Service inaccessible. Vérifiez le tunnel et les conteneurs.'
-          : 'La connexion a échoué. Réessayez ultérieurement.');
+        this.errorMessage.set({ key: status === 401 ? 'login.invalid'
+          : status === 403 ? 'login.forbidden'
+          : status === 0 ? 'login.unreachable' : 'login.failed' });
       }
     });
   }

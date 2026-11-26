@@ -1,5 +1,5 @@
 import {
-  afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef,
+  afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef,
   inject, Injector, OnInit, signal, ViewChild
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -9,6 +9,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { AuthService } from '../auth.service';
+import { I18nService, type LocalizedMessage, type TranslationKey } from '../i18n/i18n.service';
 import { HearingType, HearingTypeInput, HearingTypesService } from './hearing-types.service';
 
 type Field = keyof HearingTypeInput;
@@ -39,6 +40,7 @@ function integer(minimum: number): ValidatorFn {
 })
 export class HearingTypesComponent implements OnInit {
   readonly auth = inject(AuthService);
+  readonly i18n = inject(I18nService);
   private readonly api = inject(HearingTypesService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -57,14 +59,18 @@ export class HearingTypesComponent implements OnInit {
   readonly reloading = signal(false);
   readonly deleting = signal(false);
   readonly deletion = signal<HearingType | null>(null);
-  readonly deleteError = signal('');
+  private readonly deleteErrorMessage = signal<LocalizedMessage | null>(null);
+  readonly deleteError = computed(() => this.i18n.message(this.deleteErrorMessage()));
   readonly deleteBlocked = signal(false);
-  readonly loadError = signal('');
-  readonly error = signal('');
-  readonly status = signal('');
+  private readonly loadErrorMessage = signal<LocalizedMessage | null>(null);
+  readonly loadError = computed(() => this.i18n.message(this.loadErrorMessage()));
+  private readonly errorMessage = signal<LocalizedMessage | null>(null);
+  readonly error = computed(() => this.i18n.message(this.errorMessage()));
+  private readonly statusMessage = signal<LocalizedMessage | null>(null);
+  readonly status = computed(() => this.i18n.message(this.statusMessage()));
   readonly conflict = signal(false);
   readonly editor = signal<Editor | null>(null);
-  readonly serverErrors = signal<Partial<Record<Field, string>>>({});
+  readonly serverErrors = signal<Partial<Record<Field, TranslationKey>>>({});
   readonly form = new FormGroup({
     label: new FormControl('', { nonNullable: true, validators: [normalizedLabel] }),
     durationMinutes: new FormControl<number | null>(null, [Validators.required, integer(1)]),
@@ -77,13 +83,13 @@ export class HearingTypesComponent implements OnInit {
   load(): void {
     if (this.loading()) return;
     this.loading.set(true);
-    this.loadError.set('');
+    this.loadErrorMessage.set(null);
     this.api.list().pipe(
       finalize(() => this.loading.set(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: rows => this.types.set(rows),
-      error: (failure: unknown) => this.loadError.set(this.failureMessage(failure, 'charger les types'))
+      error: (failure: unknown) => this.loadErrorMessage.set(this.failureMessage(failure, 'load'))
     });
   }
 
@@ -113,12 +119,12 @@ export class HearingTypesComponent implements OnInit {
   save(): void {
     const editor = this.editor();
     if (!editor || !this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.conflict() || this.deleting() || this.deletion() !== null) return;
-    this.error.set('');
+    this.errorMessage.set(null);
     this.serverErrors.set({});
-    this.status.set('');
+    this.statusMessage.set(null);
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.error.set('Corrigez les champs indiqués avant d’enregistrer.');
+      this.errorMessage.set({ key: 'hearing.invalid' });
       this.focusError();
       return;
     }
@@ -140,15 +146,15 @@ export class HearingTypesComponent implements OnInit {
       next: saved => {
         this.closeEditor();
         this.conflict.set(false);
-        this.status.set('Type « ' + saved.label + ' » enregistré.');
+        this.statusMessage.set({ key: 'hearing.saved', params: { label: saved.label } });
         this.load();
       },
       error: (failure: unknown) => {
         if (failure instanceof HttpErrorResponse && failure.status === 409) {
           this.conflict.set(true);
-          this.error.set('Ce type a été modifié ailleurs. Votre saisie est conservée. Rechargez la version serveur avant de réessayer.');
+          this.errorMessage.set({ key: 'hearing.conflict' });
         } else {
-          this.error.set(this.failureMessage(failure, 'enregistrer le type'));
+          this.errorMessage.set(this.failureMessage(failure, 'save'));
           if (failure instanceof HttpErrorResponse && failure.status === 400) {
             this.serverErrors.set(this.readFieldErrors(failure.error));
           }
@@ -162,7 +168,7 @@ export class HearingTypesComponent implements OnInit {
     const editor = this.editor();
     if (!editor?.id || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
     this.reloading.set(true);
-    this.error.set('');
+    this.errorMessage.set(null);
     this.api.get(editor.id).pipe(
       finalize(() => this.reloading.set(false)),
       takeUntilDestroyed(this.destroyRef)
@@ -170,11 +176,11 @@ export class HearingTypesComponent implements OnInit {
       next: current => {
         this.setEditor(current);
         this.clearFeedback();
-        this.status.set('Version serveur rechargée. Vérifiez les valeurs avant d’enregistrer.');
+        this.statusMessage.set({ key: 'hearing.reloaded' });
         this.focusEditor();
       },
       error: (failure: unknown) => {
-        this.error.set(this.failureMessage(failure, 'recharger le type'));
+        this.errorMessage.set(this.failureMessage(failure, 'reload'));
         this.focusError();
       }
     });
@@ -184,7 +190,7 @@ export class HearingTypesComponent implements OnInit {
     if (!this.auth.hasScope('hearing-types.write') || this.deleting() || this.deletion()
         || this.saving() || this.reloading() || this.loading()) return;
     this.deletionTrigger = this.activeElement(event);
-    this.deleteError.set('');
+    this.deleteErrorMessage.set(null);
     this.deleteBlocked.set(false);
     this.deletion.set({ ...type });
     afterNextRender(() => {
@@ -197,7 +203,7 @@ export class HearingTypesComponent implements OnInit {
   cancelDeletion(): void {
     if (this.deleting()) return;
     this.closeDeletion();
-    this.deleteError.set('');
+    this.deleteErrorMessage.set(null);
     this.deleteBlocked.set(false);
   }
 
@@ -206,7 +212,7 @@ export class HearingTypesComponent implements OnInit {
     if (!target || !this.auth.hasScope('hearing-types.write') || this.deleting()
         || this.deleteBlocked() || this.saving() || this.reloading() || this.loading()) return;
     this.deleting.set(true);
-    this.deleteError.set('');
+    this.deleteErrorMessage.set(null);
     this.api.remove(target.id, target.version).pipe(
       finalize(() => this.deleting.set(false)),
       takeUntilDestroyed(this.destroyRef)
@@ -217,17 +223,15 @@ export class HearingTypesComponent implements OnInit {
           this.closeEditor();
           this.clearFeedback();
         }
-        this.status.set('Type « ' + target.label + ' » supprimé.');
+        this.statusMessage.set({ key: 'hearing.deleted', params: { label: target.label } });
         this.load();
       },
       error: (failure: unknown) => {
         if (failure instanceof HttpErrorResponse && (failure.status === 409 || failure.status === 404)) {
           this.deleteBlocked.set(true);
-          this.deleteError.set(failure.status === 409
-            ? 'Ce type a été modifié ailleurs. Rechargez les types puis vérifiez à nouveau avant de confirmer une suppression.'
-            : 'Ce type a déjà été supprimé ou est introuvable. Rechargez les types.');
+          this.deleteErrorMessage.set({ key: failure.status === 409 ? 'hearing.deleteConflict' : 'hearing.deleteMissing' });
         } else {
-          this.deleteError.set(this.failureMessage(failure, 'supprimer le type'));
+          this.deleteErrorMessage.set(this.failureMessage(failure, 'delete'));
         }
         afterNextRender(() => this.deleteTitle?.nativeElement.focus(), { injector: this.injector });
       }
@@ -242,12 +246,12 @@ export class HearingTypesComponent implements OnInit {
 
   fieldError(field: Field): string {
     const server = this.serverErrors()[field];
-    if (server) return server;
+    if (server) return this.i18n.t(server);
     const control = this.form.controls[field];
     if (!control.touched || !control.invalid) return '';
-    if (field === 'label') return 'Renseignez un libellé de 1 à 120 caractères après suppression des espaces de bord.';
-    if (field === 'durationMinutes') return 'Renseignez un entier de 1 à 2147483647 minutes.';
-    return 'Renseignez un entier de 0 à 2147483647 minutes.';
+    if (field === 'label') return this.i18n.t('hearing.field.label');
+    if (field === 'durationMinutes') return this.i18n.t('hearing.field.durationMinutes');
+    return this.i18n.t('hearing.field.pauseMinutes');
   }
 
   private setEditor(type: HearingType): void {
@@ -259,25 +263,25 @@ export class HearingTypesComponent implements OnInit {
   }
 
   private clearFeedback(): void {
-    this.error.set('');
-    this.status.set('');
+    this.errorMessage.set(null);
+    this.statusMessage.set(null);
     this.conflict.set(false);
     this.serverErrors.set({});
   }
 
-  private failureMessage(failure: unknown, action: string): string {
+  private failureMessage(failure: unknown, action: 'load' | 'save' | 'reload' | 'delete'): LocalizedMessage {
     if (failure instanceof HttpErrorResponse) {
-      if (failure.status === 401) return 'Session expirée ou refusée. Reconnectez-vous.';
-      if (failure.status === 403) return 'Vos droits ne permettent pas de ' + action + '.';
-      if (failure.status === 404) return 'Le type demandé est introuvable. Votre saisie est conservée.';
-      if (failure.status === 400) return 'Le serveur a refusé certaines valeurs. Corrigez les champs indiqués.';
-      if (failure.status === 0) return 'Service inaccessible. Vérifiez la connexion et réessayez.';
+      if (failure.status === 401) return { key: 'hearing.unauthorized' };
+      if (failure.status === 403) return { key: `hearing.forbidden.${action}` };
+      if (failure.status === 404) return { key: 'hearing.missing' };
+      if (failure.status === 400) return { key: 'hearing.badRequest' };
+      if (failure.status === 0) return { key: 'hearing.network' };
     }
-    return 'Impossible de ' + action + '. Réessayez ultérieurement.';
+    return { key: `hearing.failure.${action}` };
   }
 
-  private readFieldErrors(body: unknown): Partial<Record<Field, string>> {
-    const result: Partial<Record<Field, string>> = {};
+  private readFieldErrors(body: unknown): Partial<Record<Field, TranslationKey>> {
+    const result: Partial<Record<Field, TranslationKey>> = {};
     if (!body || typeof body !== 'object' || !('errors' in body) || !Array.isArray(body.errors)) return result;
     const items: readonly unknown[] = body.errors;
     for (const item of items) {
@@ -286,7 +290,8 @@ export class HearingTypesComponent implements OnInit {
       const message: unknown = item.message;
       if (typeof field === 'string' && fields.includes(field as Field)
           && typeof message === 'string' && message.length <= 500) {
-        result[field as Field] = message;
+        // The field identifies a localizable client message; never render server prose.
+        result[field as Field] = `hearing.field.${field as Field}`;
       }
     }
     return result;

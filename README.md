@@ -314,6 +314,10 @@ docker compose -f compose.yaml -f compose.postgres.yaml -f compose.frontend.yaml
 
 Cette commande avec `--build` récupère aussi le code du simulateur lors de la première mise à jour ; pour les changements suivants de durée uniquement, le rebuild est facultatif. Après récupération initiale de cette PR, reconstruire également le frontend avec la commande de lancement des quatre services ci-dessus pour retirer son ancienne limite de cinq minutes. Se déconnecter puis se reconnecter : les jetons déjà émis gardent leur date d’expiration ; un redémarrage du simulateur change aussi sa clé éphémère. Recréer l’API comme ci-dessus vide son cache JWKS afin qu’elle récupère la nouvelle clé ; les anciens jetons ne sont plus utilisables. Le `.env` n’est pas chargé par le script Python lancé directement : dans ce cas exporter la variable avant son lancement. Cette option concerne le simulateur local, pas la future politique Entra. Des durées courtes restent préférables pour tester l’expiration.
 
+## Langues de l’interface
+
+Le sélecteur de l’en-tête permet de choisir **Français**, **Deutsch** ou **Italiano** sans rechargement ni déconnexion. La préférence est mémorisée dans le navigateur ; les données saisies restent inchangées. Voir le [guide multilingue](docs/frontend/internationalization.md) pour le fonctionnement, les limites et les essais.
+
 ## Types d’audition dans Angular
 
 Après connexion, ouvrir **Types d’audition** pour consulter, créer, modifier ou supprimer un type, avec pause de zéro autorisée. Le [guide de l’écran](docs/frontend/hearing-types.md) décrit les tests de validation et le conflit entre deux éditions. L’API doit être démarrée avec le profil PostgreSQL ; V3 accorde le droit SQL de suppression au démarrage ; aucune nouvelle variable n’est nécessaire.
@@ -322,6 +326,6 @@ La suppression d’un type demande une confirmation explicite et vérifie sa ver
 
 ## Session après rafraîchissement
 
-Angular restaure la session valide dans le même onglet via `sessionStorage`, sans modifier l’expiration du jeton. Déconnexion, expiration ou401 API effacent cet état. Aucun mot de passe n’est conservé, et `localStorage` n’est pas utilisé. Si le navigateur bloque le stockage, la session reste utilisable en mémoire mais sera perdue au rafraîchissement. Voir le [guide frontend](docs/deployment/frontend.md#architecture-et-sécurité) pour les limites et le choix de stockage.
+Angular restaure la session valide dans le même onglet via `sessionStorage`, sans modifier l’expiration du jeton. Déconnexion, expiration ou401 API effacent cet état. Aucun mot de passe n’est conservé ; les jetons ne sont jamais placés dans `localStorage`. Seule la préférence de langue non sensible peut y être mémorisée. Si le navigateur bloque le stockage, la session reste utilisable en mémoire mais sera perdue au rafraîchissement. Voir le [guide frontend](docs/deployment/frontend.md#architecture-et-sécurité) pour les limites et le choix de stockage.
 
 Les boutons du tableau sont plus compacts et séparés ; le tableau reste défilable sur petit écran. Aucun nouveau paramètre .env, migration ou changement de backend. Les mêmes commandes Compose reconstruisent le frontend après récupération de la branche à tester.

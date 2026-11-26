@@ -57,3 +57,6 @@ footer { margin-block: 2rem; color: #425868; }
   /* Accessibility floor also applies to compact, component-scoped row actions. */
   button, nav a { min-height: 2.75rem !important; min-width: 2.75rem; }
 }
+
+.language-picker { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-width: 0; }
+.language-picker select { font: inherit; min-height: 2.75rem; max-width: 100%; padding: .375rem .5rem; border: 1px solid #9ab9c9; border-radius: .25rem; color: #172b3a; background: white; }
