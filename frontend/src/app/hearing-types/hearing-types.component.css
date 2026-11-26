@@ -33,6 +33,10 @@ tbody th { overflow-wrap: anywhere; }
 .actions-cell { min-width: 12.5rem; }
 .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .row-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .375rem;
   width: auto;
   min-height: 2rem;
   padding: .375rem .625rem;
@@ -44,3 +48,24 @@ tbody th { overflow-wrap: anywhere; }
 .row-actions .button-danger { color: #9c2323; background: white; border-color: #bc6c6c; }
 .row-actions .button-secondary:hover:not(:disabled) { background: #e2eef4; }
 .row-actions .button-danger:hover:not(:disabled) { background: #fff0f0; }
+
+.action-icon { display: block; width: 1.125rem; height: 1.125rem; flex: none; }
+@media (max-width: 40rem) {
+  /* The mobile list intentionally keeps only the label and authorized actions. */
+  table { min-width: 0; table-layout: fixed; }
+  .detail-column { display: none; }
+  th, td { padding: .625rem .5rem; }
+  .actions-cell { width: 7rem; min-width: 0; }
+  .row-actions { flex-wrap: nowrap; justify-content: flex-end; }
+  .row-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: .5rem;
+  }
+  .action-label { display: none; }
+  .action-icon { display: block; }
+}
