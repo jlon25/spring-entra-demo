@@ -119,15 +119,18 @@ La [procédure d’installation et de dépannage KVP](docs/deployment/docker-hyp
 & {
     $VmName = 'Ubuntu-26.04' # nom exact affiché par Get-VM
     $VmUser = 'jerome'
+    # IPv4 privées : 10/8, 172.16/12 et 192.168/16 ; exclut IPv6 et 169.254/16.
+    $Ipv4Octet = '(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+    $PrivateIpv4Pattern = "^(?:10\.$Ipv4Octet\.$Ipv4Octet\.$Ipv4Octet|172\.(?:1[6-9]|2[0-9]|3[01])\.$Ipv4Octet\.$Ipv4Octet|192\.168\.$Ipv4Octet\.$Ipv4Octet)$"
     $VmIps = @(
         Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop |
             Select-Object -ExpandProperty IPAddresses |
-            Where-Object { $_ -match '^192\.168\.1\.\d{1,3}$' } |
+            Where-Object { $_ -match $PrivateIpv4Pattern } |
             Sort-Object -Unique
     )
 
     if ($VmIps.Count -ne 1) {
-        throw "Impossible de choisir une IP unique pour la VM : vérifier KVP, les interfaces et le filtre réseau."
+        throw "Impossible de choisir une IPv4 privée unique ($($VmIps.Count) trouvée(s) : $($VmIps -join ', ')). Vérifier KVP et les interfaces, ou choisir manuellement l’adresse de la carte réseau de la VM."
     }
 
     Write-Host "Ouverture du tunnel vers $($VmIps[0])"
@@ -139,7 +142,7 @@ La [procédure d’installation et de dépannage KVP](docs/deployment/docker-hyp
 }
 ```
 
-Ce bloc réutilisable utilise le nom **Hyper-V** `Ubuntu-26.04`, différent du nom Ubuntu `ubuntu2604`. Il fonctionne sans élévation avec un compte autorisé à interroger Hyper-V, comme dans nos essais. Adapter `192.168.1.x` si le réseau change. Saisir le mot de passe SSH et garder la fenêtre ouverte ; les tests Windows ci-dessous se font dans une seconde fenêtre. En cas d’accès Hyper-V impossible, utiliser la procédure manuelle suivante.
+Ce bloc réutilisable utilise le nom **Hyper-V** `Ubuntu-26.04`, différent du nom Ubuntu `ubuntu2604`. Il fonctionne sans élévation avec un compte autorisé à interroger Hyper-V, comme dans nos essais. Le filtre accepte `10.0.0.0/8`, `172.16.0.0/12` et `192.168.0.0/16`, notamment `10.194.213.217`, `172.20.10.9` et `192.168.1.46`, sans modification à chaque changement de réseau. Il exclut les adresses publiques, loopback, IPv6 et IPv4 autoattribuées `169.254.x.x`. S’il trouve plusieurs adresses, choisir explicitement l’interface ou utiliser la procédure manuelle ci-dessous ; ne pas prendre simplement la première. Saisir le mot de passe SSH et garder la fenêtre ouverte ; les tests Windows ci-dessous se font dans une seconde fenêtre. En cas d’accès Hyper-V impossible, utiliser la procédure manuelle suivante.
 
 ### Vérifier l’IP de la VM puis ouvrir le tunnel depuis Windows
 
@@ -155,7 +158,7 @@ La seconde commande consulte la table de routage sans envoyer de requête à `1.
 **2. Dans PowerShell sur Windows**, mettre à jour la variable avec l’IP constatée dans Ubuntu :
 
 ```powershell
-$VmIp = '192.168.1.46' # dernière IP communiquée ; remplacer si différente dans Ubuntu
+$VmIp = '192.168.1.46' # exemple uniquement : remplacer par l’IPv4 actuelle relevée dans Ubuntu
 $VmUser = 'jerome'    # adapter le compte Ubuntu si nécessaire
 Test-NetConnection -ComputerName $VmIp -Port 22
 ```

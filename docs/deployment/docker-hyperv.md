@@ -186,15 +186,18 @@ Dans nos essais, le résultat affichait une IPv4 `192.168.1.46` et une IPv6 loca
 & {
     $VmName = 'Ubuntu-26.04' # nom exact affiché par Get-VM
     $VmUser = 'jerome'
+    # IPv4 privées : 10/8, 172.16/12 et 192.168/16 ; exclut IPv6 et 169.254/16.
+    $Ipv4Octet = '(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+    $PrivateIpv4Pattern = "^(?:10\.$Ipv4Octet\.$Ipv4Octet\.$Ipv4Octet|172\.(?:1[6-9]|2[0-9]|3[01])\.$Ipv4Octet\.$Ipv4Octet|192\.168\.$Ipv4Octet\.$Ipv4Octet)$"
     $VmIps = @(
         Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop |
             Select-Object -ExpandProperty IPAddresses |
-            Where-Object { $_ -match '^192\.168\.1\.\d{1,3}$' } |
+            Where-Object { $_ -match $PrivateIpv4Pattern } |
             Sort-Object -Unique
     )
 
     if ($VmIps.Count -ne 1) {
-        throw "Impossible de choisir une IP unique pour la VM : vérifier KVP, les interfaces et le filtre réseau."
+        throw "Impossible de choisir une IPv4 privée unique ($($VmIps.Count) trouvée(s) : $($VmIps -join ', ')). Vérifier KVP et les interfaces, ou choisir manuellement l’adresse de la carte réseau de la VM."
     }
 
     Write-Host "Ouverture du tunnel vers $($VmIps[0])"
@@ -206,7 +209,7 @@ Dans nos essais, le résultat affichait une IPv4 `192.168.1.46` et une IPv6 loca
 }
 ```
 
-Adapter le nom de VM, le compte Ubuntu et le filtre `192.168.1.x` si le réseau change. Le script ne prend pas arbitrairement la première adresse et n’utilise pas l’IPv6 `fe80::…`. Si aucune ou plusieurs IPv4 correspondent, inspecter les interfaces ou revenir à la vérification manuelle ; ne pas supprimer le contrôle d’unicité sans choisir le réseau attendu.
+Adapter le nom de VM et le compte Ubuntu. Le filtre accepte toutes les IPv4 privées des plages `10.0.0.0/8`, `172.16.0.0/12` et `192.168.0.0/16`, par exemple `10.194.213.217`, `172.20.10.9` et `192.168.1.46`. `172.16.0.0/12` couvre uniquement les deuxièmes octets 16 à 31, pas toutes les adresses `172.x.x.x`. Les adresses publiques, loopback et autoattribuées `169.254.x.x` sont exclues. Le script ne prend pas arbitrairement la première adresse et n’utilise pas l’IPv6 `fe80::…`. Si aucune ou plusieurs IPv4 correspondent, inspecter les interfaces ou revenir à la vérification manuelle ; ne pas supprimer le contrôle d’unicité sans choisir le réseau attendu.
 
 Saisir le mot de passe **SSH Ubuntu**, vérifier la clé hôte lors d’une nouvelle connexion et garder la fenêtre ouverte. Si un tunnel occupe déjà ces ports, le conserver ou le fermer avant d’en lancer un autre. Dans une **seconde fenêtre PowerShell**, vérifier :
 
