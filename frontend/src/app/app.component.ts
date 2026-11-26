@@ -9,18 +9,20 @@ import { AuthService } from './auth.service';
   template: `
     <a class="skip-link" href="#main-content">Aller au contenu</a>
     <header>
-      <span class="brand">Planification des auditions</span>
-      <nav aria-label="Navigation principale">
-        @if (auth.authenticated()) {
-          <a routerLink="/accueil" routerLinkActive="active" ariaCurrentWhenActive="page">Accueil</a>
-          @if (auth.hasScope('hearing-types.read')) {
-            <a routerLink="/types-audition" routerLinkActive="active" ariaCurrentWhenActive="page">Types d’audition</a>
+      <div class="header-inner">
+        <span class="brand">Planification des auditions</span>
+        <nav aria-label="Navigation principale">
+          @if (auth.authenticated()) {
+            <a routerLink="/accueil" routerLinkActive="active" ariaCurrentWhenActive="page">Accueil</a>
+            @if (auth.hasScope('hearing-types.read')) {
+              <a routerLink="/types-audition" routerLinkActive="active" ariaCurrentWhenActive="page">Types d’audition</a>
+            }
+            <button type="button" (click)="logout()">Se déconnecter</button>
+          } @else {
+            <a routerLink="/login" routerLinkActive="active" ariaCurrentWhenActive="page">Connexion</a>
           }
-          <button type="button" (click)="logout()">Se déconnecter</button>
-        } @else {
-          <a routerLink="/login" routerLinkActive="active" ariaCurrentWhenActive="page">Connexion</a>
-        }
-      </nav>
+        </nav>
+      </div>
     </header>
     <main id="main-content" tabindex="-1"><router-outlet /></main>
     <footer>Environnement local de développement — identité simulée</footer>

@@ -11,7 +11,7 @@ import { AuthService, TokenResponse } from './auth.service';
   imports: [ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section aria-labelledby="login-title">
+    <section class="login-panel" aria-labelledby="login-title">
       <h1 id="login-title">Connexion locale</h1>
       <p>Utilisez le compte du simulateur de développement.</p>
       @if (auth.expired()) {
