@@ -158,8 +158,8 @@ test('shows only labels and named icon actions on mobile while retaining full de
   const table = page.getByRole('table');
   const edit = page.getByRole('button', { name: 'Modifier ' + label, exact: true });
   const remove = page.getByRole('button', { name: 'Supprimer ' + label, exact: true });
-  for (const width of [320, 390, 768, 1920, 390]) {
-    const mobile = width < 640;
+  for (const width of [320, 390, 640, 641, 768, 1920, 390]) {
+    const mobile = width <= 640;
     await page.setViewportSize({ width, height: 900 });
     await expect(page.getByRole('rowheader', { name: label, exact: true })).toBeVisible();
     await expect(table.getByRole('columnheader')).toHaveCount(mobile ? 2 : 5);
