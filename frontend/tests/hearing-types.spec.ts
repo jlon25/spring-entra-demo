@@ -107,6 +107,7 @@ test('preserves a stale draft, reloads the current version and then saves withou
     const staleSave = writeResponse(second, 'PUT');
     await second.getByRole('button', { name: 'Enregistrer', exact: true }).click();
     expect((await staleSave).status()).toBe(409);
+    await expect(second.getByRole('dialog')).toBeVisible();
     await expect(second.getByLabel('Durée (minutes)', { exact: true })).toHaveValue('120');
     await second.getByRole('button', { name: 'Recharger la version serveur', exact: true }).click();
     await expect(second.getByLabel('Durée (minutes)', { exact: true })).toHaveValue('90');
@@ -172,6 +173,7 @@ test('refuses deletion of an obsolete version and requires a new confirmation af
     await second.getByRole('button', { name: 'Confirmer la suppression', exact: true }).click();
     const refused = await stale;
     expect(refused.status()).toBe(409);
+    await expect(second.getByRole('dialog')).toBeVisible();
     expect(new URL(refused.request().url()).searchParams.get('version')).toBe('0');
     await expect(second.getByRole('button', { name: 'Recharger les types', exact: true })).toBeVisible();
     const listed = second.waitForResponse(response => response.request().method() === 'GET'
@@ -217,4 +219,108 @@ test('keeps compact row actions separated on desktop, tablet and mobile', async 
   await expect(page.getByRole('button', { name: 'Confirmer la suppression', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Annuler la suppression', exact: true }).click();
   await expect(remove).toBeEnabled();
+});
+
+
+// These two UI/accessibility tests simulate only the list response to exercise a
+// long page without persisting hundreds of rows. The CRUD/conflict tests above
+// still use the real API, signed JWTs and PostgreSQL.
+test('opens modals above a long list and restores focus after keyboard cancellation', async ({ page }) => {
+  const rows = Array.from({ length: 200 }, (_, index) => ({
+    id: 'ui-modal-' + index,
+    label: 'Fictitious modal row ' + index,
+    durationMinutes: 60, pauseMinutes: 0, defenderRequired: true, version: 0
+  }));
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.route('**/api/hearing-types', async route => {
+    if (route.request().method() === 'GET') await route.fulfill({ json: rows });
+    else await route.continue();
+  });
+  let writes = 0;
+  page.on('request', request => {
+    if (['POST', 'PUT', 'DELETE'].includes(request.method())
+        && new URL(request.url()).pathname.startsWith('/api/hearing-types')) writes++;
+  });
+  await login(page);
+  await openTypes(page);
+  const edit = page.getByRole('button', { name: 'Modifier ' + rows[199].label, exact: true });
+  const remove = page.getByRole('button', { name: 'Supprimer ' + rows[199].label, exact: true });
+  await edit.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+  await edit.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAccessibleName('Modifier un type');
+  await expect(dialog.getByLabel('Libellé', { exact: true })).toBeFocused();
+  const bounds = await dialog.boundingBox();
+  if (!bounds) throw new Error('Edit dialog is not rendered');
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(721);
+  // Native modality must keep both forward and backward keyboard navigation
+  // inside the dialog instead of reaching the list or the main navigation.
+  for (const key of ['Shift+Tab', ...Array<string>(10).fill('Tab')]) {
+    await page.keyboard.press(key);
+    await expect.poll(() => dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(edit).toBeFocused();
+
+  await remove.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Annuler la suppression', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(remove).toBeFocused();
+  expect(writes).toBe(0);
+
+  const create = page.getByRole('button', { name: 'Nouveau type', exact: true });
+  await create.click();
+  await expect(dialog).toHaveAccessibleName('Créer un type');
+  await expect(dialog.getByLabel('Libellé', { exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(create).toBeFocused();
+  expect(writes).toBe(0);
+});
+
+test('keeps modal controls reachable in a short mobile viewport without page overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 360 });
+  await page.route('**/api/hearing-types', async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ json: [{
+        id: 'ui-modal-mobile', label: 'Fictitious mobile modal type',
+        durationMinutes: 60, pauseMinutes: 0, defenderRequired: false, version: 0
+      }] });
+    } else await route.continue();
+  });
+  await login(page);
+  await openTypes(page);
+  await page.getByRole('button', { name: 'Nouveau type', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  const bounds = await dialog.boundingBox();
+  if (!bounds) throw new Error('Mobile dialog is not rendered');
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(391);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(361);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  // The small height requires scrolling within the modal to reach its actions.
+  expect(await dialog.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  const cancel = dialog.getByRole('button', { name: 'Annuler', exact: true });
+  await cancel.scrollIntoViewIfNeeded();
+  await expect(cancel).toBeInViewport();
+  await cancel.click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Nouveau type', exact: true })).toBeFocused();
+
+  const remove = page.getByRole('button', { name: 'Supprimer Fictitious mobile modal type', exact: true });
+  await remove.click();
+  await expect(dialog).toBeVisible();
+  const cancelDelete = dialog.getByRole('button', { name: 'Annuler la suppression', exact: true });
+  await expect(cancelDelete).toBeFocused();
+  await cancelDelete.click();
+  await expect(dialog).toBeHidden();
+  await expect(remove).toBeFocused();
 });

@@ -58,3 +58,13 @@ Pour cette mise à jour, reconstruire les quatre services avec les commandes ci-
 Une session valide est restaurée depuis le stockage de l’onglet au rechargement, sans prolonger sa date d’expiration. Les types sont relus depuis PostgreSQL ; les brouillons non enregistrés et les confirmations de suppression ne sont pas persistés. Après expiration, déconnexion ou refus401 de l’API, une nouvelle connexion reste nécessaire.
 
 Les actions « Modifier » et « Supprimer » sont regroupées avec un espace fixe et des boutons compacts. Elles peuvent revenir à la ligne sans se toucher ; « Supprimer » possède aussi un contour rouge et conserve son libellé explicite. Sur petit écran, le tableau défile dans son propre conteneur sans élargir toute la page. Les contrôles clavier et la confirmation de suppression restent disponibles.
+
+## Formulaires en fenêtres modales
+
+« Nouveau type », « Modifier » et « Supprimer » ouvrent une fenêtre modale centrée au-dessus de la liste, sans devoir atteindre le bas du tableau. Le navigateur rend l’arrière-plan inactif. Un contrôle explicite de Tab/Maj+Tab boucle entre les contrôles actifs du dialogue pour empêcher le focus de rejoindre la barre d’adresse en fin de parcours, y compris après le focus sur un message d’erreur ou pendant une requête. Le formulaire reçoit le focus sur « Libellé » ; la confirmation de suppression place le focus sur « Annuler la suppression ».
+
+« Annuler » ou Échap ferme le dialogue sans écriture et rend le focus au bouton déclencheur ; si celui-ci a disparu ou est désactivé, le titre de la liste sert de repli. Cliquer sur le fond ne ferme pas la fenêtre. Pendant un enregistrement, un rechargement de version ou une suppression en cours, la fermeture est bloquée jusqu’à la réponse afin d’éviter un résultat ambigu.
+
+Les erreurs et le rechargement explicite après conflit restent dans la fenêtre. Le numéro de version technique n’est plus affiché ; il est toujours transmis au backend pour empêcher l’écrasement d’une modification concurrente. Sur petit écran, la fenêtre possède une hauteur maximale et un défilement interne ; les actions restent accessibles au clavier.
+
+Vérification manuelle : ouvrir une ligne éloignée dans une longue liste, annuler et retrouver le déclencheur ; naviguer avec Tab/Maj+Tab et Échap ; essayer le formulaire sur petit écran ; provoquer un 409 dans deux onglets et vérifier que la saisie reste visible sans renvoi automatique. Les tests unitaires simulent l’API et les méthodes de dialogue manquantes dans jsdom ; ils vérifient les limites de tabulation du composant, mais le parcours clavier complet doit aussi être vérifié en navigateur.
