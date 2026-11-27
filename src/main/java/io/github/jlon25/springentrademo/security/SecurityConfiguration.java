@@ -43,7 +43,7 @@ public class SecurityConfiguration {
                         .hasAuthority("SCOPE_hearing-types.read")
                         .requestMatchers(HttpMethod.POST, "/api/hearing-types")
                         .hasAuthority("SCOPE_hearing-types.write")
-                        .requestMatchers(HttpMethod.PUT, "/api/hearing-types/{id}")
+                        .requestMatchers(HttpMethod.PUT, "/api/hearing-types/{id}", "/api/hearing-types/{id}/status")
                         .hasAuthority("SCOPE_hearing-types.write")
                         .requestMatchers(HttpMethod.DELETE, "/api/hearing-types/{id}")
                         .hasAuthority("SCOPE_hearing-types.write")

@@ -231,10 +231,10 @@ test('opens modals above a long list and restores focus after keyboard cancellat
   const rows = Array.from({ length: 200 }, (_, index) => ({
     id: 'ui-modal-' + index,
     label: 'Fictitious modal row ' + index,
-    durationMinutes: 60, pauseMinutes: 0, defenderRequired: true, version: 0
+    durationMinutes: 60, pauseMinutes: 0, defenderRequired: true, version: 0, active: true
   }));
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.route('**/api/hearing-types', async route => {
+  await page.route(url => url.pathname === '/api/hearing-types', async route => {
     if (route.request().method() === 'GET') await route.fulfill({ json: rows });
     else await route.continue();
   });
@@ -288,11 +288,11 @@ test('opens modals above a long list and restores focus after keyboard cancellat
 
 test('keeps modal controls reachable in a short mobile viewport without page overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 360 });
-  await page.route('**/api/hearing-types', async route => {
+  await page.route(url => url.pathname === '/api/hearing-types', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ json: [{
         id: 'ui-modal-mobile', label: 'Fictitious mobile modal type',
-        durationMinutes: 60, pauseMinutes: 0, defenderRequired: false, version: 0
+        durationMinutes: 60, pauseMinutes: 0, defenderRequired: false, version: 0, active: true
       }] });
     } else await route.continue();
   });

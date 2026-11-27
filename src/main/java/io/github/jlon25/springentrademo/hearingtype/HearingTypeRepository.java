@@ -12,7 +12,7 @@ import org.springframework.stereotype.Repository;
 @Profile("postgres")
 public class HearingTypeRepository {
 
-    private static final String COLUMNS = "id, label, duration_minutes, pause_minutes, defender_required, version";
+    private static final String COLUMNS = "id, label, duration_minutes, pause_minutes, defender_required, active, version";
 
     private final JdbcClient jdbc;
 
@@ -20,9 +20,9 @@ public class HearingTypeRepository {
         this.jdbc = jdbc;
     }
 
-    public List<HearingType> findAll() {
-        return jdbc.sql("SELECT " + COLUMNS + " FROM hearing_type ORDER BY label, id")
-                .query(HearingType.class).list();
+    public List<HearingType> findByActive(boolean active) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM hearing_type WHERE active = :active ORDER BY label, id")
+                .param("active", active).query(HearingType.class).list();
     }
 
     public Optional<HearingType> findById(UUID id) {
@@ -53,6 +53,16 @@ public class HearingTypeRepository {
                 .param("pause", pauseMinutes).param("defender", defenderRequired).param("version", version)
                 .query(HearingType.class).optional();
     }
+    public Optional<HearingType> setActive(UUID id, boolean active, long version) {
+        // Shares the version predicate with parameter edits and deletion.
+        return jdbc.sql("""
+                UPDATE hearing_type SET active = :active, version = version + 1
+                WHERE id = :id AND version = :version
+                """ + " RETURNING " + COLUMNS)
+                .param("id", id).param("active", active).param("version", version)
+                .query(HearingType.class).optional();
+    }
+
     public int delete(UUID id, long version) {
         // Compare and delete in one SQL statement; never delete a newer version.
         return jdbc.sql("DELETE FROM hearing_type WHERE id = :id AND version = :version")

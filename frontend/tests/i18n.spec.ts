@@ -192,11 +192,11 @@ test('keeps the language selector and named mobile icon actions usable at 320px 
   const label = 'Fictitious-localized-mobile-label';
   try {
     // Only the list is simulated here to isolate layout from persisted test data.
-    await page.route('**/api/hearing-types', async route => {
+    await page.route(url => url.pathname === '/api/hearing-types', async route => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ json: [{
           id: 'localized-mobile-ui-only', label, durationMinutes: 60,
-          pauseMinutes: 0, defenderRequired: false, version: 0
+          pauseMinutes: 0, defenderRequired: false, version: 0, active: true
         }] });
       } else await route.continue();
     });

@@ -7,7 +7,7 @@ import { HearingType, HearingTypeInput, HearingTypesService } from './hearing-ty
 const input: HearingTypeInput = {
   label: '  Type fictif  ', durationMinutes: 60, pauseMinutes: 0, defenderRequired: true
 };
-const row: HearingType = { ...input, label: 'Type fictif', id: 'fictitious-id', version: 2 };
+const row: HearingType = { ...input, label: 'Type fictif', id: 'fictitious-id', version: 2, active: true };
 
 describe('Hearing types HTTP contract', () => {
   let api: HearingTypesService;
@@ -55,4 +55,22 @@ describe('Hearing types HTTP contract', () => {
     });
     request.flush({ ...row, version: 3 });
   });
+  it('filters inactive types explicitly while the default list uses active types', () => {
+    api.list(false).subscribe();
+    const request = http.expectOne('/api/hearing-types?active=false');
+    expect(request.request.method).toBe('GET');
+    request.flush([{ ...row, active: false }]);
+  });
+
+  it('changes only the captured state and version through the dedicated endpoint', () => {
+    api.setStatus(row.id, false, row.version).subscribe(value => {
+      expect(value.active).toBe(false);
+      expect(value.version).toBe(3);
+    });
+    const request = http.expectOne('/api/hearing-types/' + row.id + '/status');
+    expect(request.request.method).toBe('PUT');
+    expect(request.request.body).toEqual({ active: false, version: 2 });
+    request.flush({ ...row, active: false, version: 3 });
+  });
+
 });

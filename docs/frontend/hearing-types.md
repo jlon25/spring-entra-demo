@@ -2,7 +2,7 @@
 
 ## Portée et prérequis
 
-Cette tranche ajoute le référentiel des types : consultation, création et modification du libellé, de la durée, de la pause minimale et de la règle de défenseur. Suppression explicite incluse ; pas de dossiers, auditions, disponibilités ou moteur de planification. Le [contrat HTTP](../api/hearing-types.md) et les migrations V1/V2 existants sont conservés ; V3 accorde le droit SQL de suppression. Aucune nouvelle dépendance.
+Cette tranche ajoute le référentiel des types : consultation, création et modification du libellé, de la durée, de la pause minimale et de la règle de défenseur. Suppression explicite incluse ; pas de dossiers, auditions, disponibilités ou moteur de planification. Le [contrat HTTP](../api/hearing-types.md) et les migrations V1/V2 existants sont conservés ; V3 accorde le droit SQL de suppression ; V4 ajoute l’état actif, initialement vrai pour tous les types déjà présents. Aucune nouvelle dépendance.
 
 Le backend doit fonctionner avec le profil `postgres` et ses comptes déjà préparés. Une base PostgreSQL simplement démarrée sans API raccordée ne suffit pas. Suivre le [guide PostgreSQL](../deployment/postgresql.md) pour une première installation et le [guide frontend](../deployment/frontend.md) pour le tunnel SSH4200 et la connexion locale.
 
@@ -45,19 +45,40 @@ Le job `frontend-browser` prépare une base jetable, démarre les quatre service
 
 La réussite CI ne vaut pas une validation sur la VM personnelle. Aucun changement n’est automatiquement déployé sur celle-ci. Un retour à l’ancienne interface conserve les types enregistrés et le schéma ; ne pas supprimer le volume.
 
+## Filtrer, désactiver et réactiver
+
+À chaque ouverture de l’écran, le filtre **État des types** affiche **Actifs** par défaut. **Inactifs** est l’autre choix ; aucune vue « Tous » n’est proposée. Le serveur filtre les lignes. Les réponses d’une ancienne demande de liste ne doivent pas remplacer une sélection plus récente.
+
+1. Créer un type fictif : il est actif. Une création depuis la vue des inactifs revient à la vue des actifs pour montrer le nouveau type.
+2. Dans **Actifs**, choisir **Désactiver** puis lire et confirmer les conséquences dans la modale. Annuler ou Échap n’écrit rien.
+3. Après succès, la ligne quitte la liste des actifs. Ses données restent en base.
+4. Sélectionner **Inactifs**, retrouver la ligne et, si nécessaire, modifier ses paramètres : enregistrer une modification ne la réactive pas.
+5. Choisir **Activer** et confirmer. La ligne quitte les inactifs ; sélectionner **Actifs** pour la retrouver.
+6. Recharger la page : le filtre repart sur **Actifs** et les états sont relus depuis PostgreSQL.
+
+Le changement d’état nécessite `hearing-types.write`. Les comptes en lecture seule peuvent utiliser les deux filtres sans bouton de mutation. La modale capture la version affichée ; un `409` conserve l’information du refus et impose le rechargement de la liste puis une nouvelle vérification/confirmation. Aucun changement n’est renvoyé automatiquement avec une version plus récente. Les commandes sont bloquées durant la requête pour éviter les doubles envois.
+
+### Ce que signifie une désactivation
+
+Un type inactif est conservé et réactivable. Pour la future planification, il ne sera plus proposé pour créer de nouvelles auditions. Désactiver ne devra pas annuler, déplacer ou modifier les auditions existantes ; réactiver ne devra pas les modifier non plus. La création et la planification d’auditions ne sont pas encore implémentées : ces conséquences constituent la règle à respecter dans ces futurs écrans et API.
+
+Désactiver ne remplace pas la suppression : cette dernière reste définitive. Avant de relier des auditions aux types, la protection des références contre la suppression devra être ajoutée. Aucun historique détaillé des changements d’état n’est introduit.
+
+Les filtres, actions, confirmations, conséquences et erreurs sont traduits en français, allemand et italien. Sur mobile, le libellé et les actions restent visibles ; les boutons à icône gardent leur nom accessible et leur cible de 44 pixels.
+
 ## Supprimer un type
 
 Cliquer sur « Supprimer » dans la ligne concernée. L’écran affiche son libellé et précise que la suppression est définitive. « Annuler la suppression » ne fait aucune requête DELETE ; « Confirmer la suppression » supprime uniquement la version affichée. Le bouton est réservé au droit d’écriture et ne permet pas plusieurs envois pendant la requête.
 
 Après un 409 (modification concurrente) ou 404 (type déjà absent), aucune nouvelle suppression n’est envoyée automatiquement. Utiliser « Recharger les types », vérifier la ligne actuelle, puis redemander et confirmer la suppression si elle est toujours souhaitée. Un refus 403 conserve la confirmation et explique le manque de droits. La saisie d’un autre type reste conservée ; si le type supprimé était en cours d’édition, son formulaire est fermé.
 
-Pour cette mise à jour, reconstruire les quatre services avec les commandes ci-dessus : Flyway applique V3 au démarrage de l’API sur le volume existant. Sauvegarder la base avant des essais de suppression importants. Aucun effacement de volume, reset de base ou changement de .env n’est nécessaire.
+Pour cette mise à jour, reconstruire les quatre services avec les commandes ci-dessus : Flyway applique les migrations jusqu’à V4 au démarrage de l’API sur le volume existant. Sauvegarder la base avant des essais de suppression importants. Aucun effacement de volume, reset de base ou changement de .env n’est nécessaire.
 
 ## Rafraîchissement et disposition du tableau
 
 Une session valide est restaurée depuis le stockage de l’onglet au rechargement, sans prolonger sa date d’expiration. Les types sont relus depuis PostgreSQL ; les brouillons non enregistrés et les confirmations de suppression ne sont pas persistés. Après expiration, déconnexion ou refus401 de l’API, une nouvelle connexion reste nécessaire.
 
-Sur écran de plus de 40 rem (640 pixels CSS avec la taille de police par défaut), le tableau affiche toutes les colonnes et les boutons avec icône et texte, afin d’associer chaque symbole à son action. À 40 rem ou moins, la liste affiche uniquement le libellé et les actions autorisées : crayon pour modifier, poubelle pour supprimer. Les colonnes Durée, Pause et Défenseur sont masquées dans cette présentation mobile, sans suppression de données. Les boutons gardent des noms accessibles complets (« Modifier [libellé] », « Supprimer [libellé] »), des cibles d’au moins 44 × 44 pixels CSS et un espacement de 8 pixels ; les icônes sont décoratives pour les lecteurs d’écran.
+Sur écran de plus de 40 rem (640 pixels CSS avec la taille de police par défaut), le tableau affiche toutes les colonnes et les boutons avec icône et texte, afin d’associer chaque symbole à son action. À 40 rem ou moins, la liste affiche uniquement le libellé et les actions autorisées : crayon pour modifier, poubelle pour supprimer, et action d’activation ou désactivation. Ces actions restent nommées pour les lecteurs d’écran et peuvent se répartir sur plusieurs lignes. Les colonnes Durée, Pause et Défenseur sont masquées dans cette présentation mobile, sans suppression de données. Les boutons gardent des noms accessibles complets (« Modifier [libellé] », « Supprimer [libellé] »), des cibles d’au moins 44 × 44 pixels CSS et un espacement de 8 pixels ; les icônes sont décoratives pour les lecteurs d’écran.
 
 Les valeurs restent dans le formulaire modal d’édition pour les comptes ayant le droit d’écriture. Un compte en lecture seule conserve uniquement le libellé dans la liste mobile ; agrandir la fenêtre permet de consulter les autres colonnes, sans lui accorder de droit d’édition. Aucun sélecteur de colonnes ni nouvelle permission n’est ajouté. Les contrôles clavier, la confirmation explicite de suppression et le contrôle des modifications concurrentes sont conservés.
 

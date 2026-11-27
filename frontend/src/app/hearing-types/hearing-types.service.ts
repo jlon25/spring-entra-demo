@@ -12,6 +12,7 @@ export interface HearingTypeInput {
 export interface HearingType extends HearingTypeInput {
   id: string;
   version: number;
+  active: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -19,8 +20,9 @@ export class HearingTypesService {
   private readonly http = inject(HttpClient);
   private readonly path = '/api/hearing-types';
 
-  list(): Observable<HearingType[]> {
-    return this.http.get<HearingType[]>(this.path);
+  list(active = true): Observable<HearingType[]> {
+    // Omitted query preserves the API default: active types only.
+    return this.http.get<HearingType[]>(this.path, active ? {} : { params: { active: false } });
   }
 
   get(id: string): Observable<HearingType> {
@@ -34,6 +36,10 @@ export class HearingTypesService {
   update(id: string, input: HearingTypeInput, version: number): Observable<HearingType> {
     return this.http.put<HearingType>(this.path + '/' + encodeURIComponent(id),
       { ...this.payload(input), version });
+  }
+
+  setStatus(id: string, active: boolean, version: number): Observable<HearingType> {
+    return this.http.put<HearingType>(this.path + '/' + encodeURIComponent(id) + '/status', { active, version });
   }
 
   remove(id: string, version: number): Observable<void> {

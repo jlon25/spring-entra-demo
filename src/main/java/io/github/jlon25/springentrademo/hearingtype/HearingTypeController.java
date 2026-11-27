@@ -37,8 +37,8 @@ public class HearingTypeController {
     }
 
     @GetMapping
-    public List<HearingType> list() {
-        return repository.findAll();
+    public List<HearingType> list(@RequestParam(defaultValue = "true") boolean active) {
+        return repository.findByActive(active);
     }
 
     @GetMapping("/{id}")
@@ -65,6 +65,15 @@ public class HearingTypeController {
                 });
     }
 
+    @PutMapping(path = "/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public HearingType setStatus(@PathVariable UUID id, @Valid @RequestBody StatusRequest request) {
+        return repository.setActive(id, request.active(), request.version()).orElseGet(() -> {
+            if (repository.findById(id).isEmpty()) throw notFound();
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The hearing type was modified. Reload it before changing its status.");
+        });
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id,
             @RequestParam(required = false) Long version) {
@@ -82,6 +91,9 @@ public class HearingTypeController {
 
     private static ResponseStatusException notFound() {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, "Hearing type not found.");
+    }
+
+    public record StatusRequest(@NotNull Boolean active, @NotNull @PositiveOrZero Long version) {
     }
 
     public record CreateRequest(
