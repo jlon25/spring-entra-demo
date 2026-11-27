@@ -51,7 +51,7 @@ Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: applic
 | `GET /public/ping` | Public, JSON `{"message":"pong"}` |
 | `GET /api/message` | JWT valide et autorité `SCOPE_api.read` |
 | `GET /api/hearing-types` et `GET /api/hearing-types/{id}` | Profil `postgres`, droit `hearing-types.read` |
-| `POST /api/hearing-types`, `PUT /api/hearing-types/{id}` et `DELETE /api/hearing-types/{id}?version={version}` | Profil `postgres`, droit `hearing-types.write` |
+| `POST /api/hearing-types`, `PUT /api/hearing-types/{id}`, `PUT /api/hearing-types/{id}/status` et `DELETE /api/hearing-types/{id}?version={version}` | Profil `postgres`, droit `hearing-types.write` |
 | Toute autre route ou méthode | Refusée par défaut |
 
 Jeton absent/invalide : `401`. JWT valide sans scope requis : `403`. Seul RS256 est accepté avec une clé du JWKS configuré. Signature, issuer exact, audience et expiration obligatoire sont vérifiés ; `nbf` est vérifié s’il est présent. Tolérance d’horloge : 60 secondes. Les scopes `scope` ou `scp` deviennent des autorités `SCOPE_…`. L’identité n’accorde pas de permission sans règle explicite.
@@ -323,7 +323,7 @@ Le sélecteur de l’en-tête permet de choisir **Français**, **Deutsch** ou **
 
 ## Types d’audition dans Angular
 
-Après connexion, ouvrir **Types d’audition** pour consulter, créer, modifier ou supprimer un type, avec pause de zéro autorisée. Le [guide de l’écran](docs/frontend/hearing-types.md) décrit les tests de validation et le conflit entre deux éditions. L’API doit être démarrée avec le profil PostgreSQL ; V3 accorde le droit SQL de suppression au démarrage ; aucune nouvelle variable n’est nécessaire.
+Après connexion, ouvrir **Types d’audition** pour consulter, créer, modifier ou supprimer un type, avec pause de zéro autorisée. Le [guide de l’écran](docs/frontend/hearing-types.md) décrit les tests de validation et le conflit entre deux éditions. L’API doit être démarrée avec le profil PostgreSQL ; V3 accorde le droit SQL de suppression et V4 ajoute l’état actif au démarrage ; les types déjà enregistrés restent actifs. Aucune nouvelle variable n’est nécessaire.
 
 La suppression d’un type demande une confirmation explicite et vérifie sa version pour refuser une modification concurrente. Elle est définitive : un revert de l’application ne restaure pas les lignes supprimées. Voir le [guide de l’écran](docs/frontend/hearing-types.md#supprimer-un-type). Reconstruire l’API pour appliquer V3, sans supprimer le volume.
 
@@ -331,4 +331,10 @@ La suppression d’un type demande une confirmation explicite et vérifie sa ver
 
 Angular restaure la session valide dans le même onglet via `sessionStorage`, sans modifier l’expiration du jeton. Déconnexion, expiration ou401 API effacent cet état. Aucun mot de passe n’est conservé ; les jetons ne sont jamais placés dans `localStorage`. Seule la préférence de langue non sensible peut y être mémorisée. Si le navigateur bloque le stockage, la session reste utilisable en mémoire mais sera perdue au rafraîchissement. Voir le [guide frontend](docs/deployment/frontend.md#architecture-et-sécurité) pour les limites et le choix de stockage.
 
-Les boutons du tableau sont plus compacts et séparés ; le tableau reste défilable sur petit écran. Aucun nouveau paramètre .env, migration ou changement de backend. Les mêmes commandes Compose reconstruisent le frontend après récupération de la branche à tester.
+Les boutons du tableau sont plus compacts et séparés ; le tableau reste défilable sur petit écran. Aucun nouveau paramètre `.env` ; la migration V4 et le contrat de changement d’état sont décrits ci-dessous. Les mêmes commandes Compose reconstruisent le frontend après récupération de la branche à tester.
+
+## Types actifs et inactifs
+
+L’écran affiche les **Actifs** par défaut. Pour retrouver un type désactivé et le réactiver, sélectionner **Inactifs**, puis confirmer **Activer**. Chaque changement d’état conserve les paramètres et contrôle la version ; la ligne quitte la vue courante après succès. Consulter les [conséquences et essais](docs/frontend/hearing-types.md#filtrer-désactiver-et-réactiver) et le [contrat API](docs/api/hearing-types.md#activation-désactivation-et-filtrage).
+
+La désactivation conserve le type et permettra de l’exclure des nouvelles auditions ; elle ne devra pas modifier les auditions existantes. La planification n’est pas encore implémentée. Reconstruire API et frontend pour appliquer V4 et l’interface, conserver le volume et le `.env`, et sauvegarder la base avant mise à jour. Une suppression reste distincte et définitive.

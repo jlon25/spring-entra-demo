@@ -4,7 +4,7 @@
 
 Première fonctionnalité métier : consulter, créer et modifier des types d’audition. Le profil `postgres` est requis ; le démarrage sans ce profil conserve le socle JWT sans persistance. La suppression explicite des types est disponible ; aucun dossier, audition planifiée ou donnée de personne n’est ajouté.
 
-JDBC paramétré suffit à ce référentiel simple ; aucun ORM ou service intermédiaire sans responsabilité supplémentaire. Flyway applique les migrations versionnées dans le schéma `auditions`. V1 crée la table ; V2 assouplit la contrainte de pause pour accepter zéro sans modifier V1 ni les données. Java 21, Spring Boot 4.0.9 et Maven sont conservés ; les nouvelles dépendances restent gérées par Boot (Flyway 11.14.1, pilote PostgreSQL 42.7.14). PostgreSQL reste en version 18.6.
+JDBC paramétré suffit à ce référentiel simple ; aucun ORM ou service intermédiaire sans responsabilité supplémentaire. Flyway applique les migrations versionnées dans le schéma `auditions`. V1 crée la table ; V2 assouplit la contrainte de pause pour accepter zéro sans modifier V1 ni les données ; V3 accorde la suppression ; V4 ajoute `active BOOLEAN NOT NULL DEFAULT TRUE` sans effacer les types existants. Java 21, Spring Boot 4.0.9 et Maven sont conservés ; les nouvelles dépendances restent gérées par Boot (Flyway 11.14.1, pilote PostgreSQL 42.7.14). PostgreSQL reste en version 18.6.
 
 Les permissions `hearing-types.read` et `hearing-types.write` ont été validées par le métier. Le compte local simulé reçoit explicitement les deux, plus `api.read`. Un droit d’écriture n’implique pas la lecture ; `api.read` seul n’accorde aucun accès au référentiel. Les rôles métier des intervenants ne déterminent pas ces permissions. L’attribution réelle des droits Entra reste à définir.
 
@@ -12,10 +12,11 @@ Les permissions `hearing-types.read` et `hearing-types.write` ont été validée
 
 | Méthode et route | Droit | Résultat |
 | --- | --- | --- |
-| `GET /api/hearing-types` | `hearing-types.read` | `200`, tableau, vide au départ, trié par libellé puis identifiant |
+| `GET /api/hearing-types?active=true` (défaut) ou `?active=false` | `hearing-types.read` | `200`, tableau filtré par état, trié par libellé puis identifiant |
 | `GET /api/hearing-types/{id}` | `hearing-types.read` | `200`, ou `404` si absent |
 | `POST /api/hearing-types` | `hearing-types.write` | `201`, représentation créée et en-tête `Location` relatif |
 | `PUT /api/hearing-types/{id}` | `hearing-types.write` | `200`, représentation mise à jour ; `404` si absent, `409` si version périmée |
+| `PUT /api/hearing-types/{id}/status` | `hearing-types.write` | `200`, état mis à jour ; `400` si corps invalide, `404` si absent, `409` si version périmée |
 | `DELETE /api/hearing-types/{id}?version={version}` | `hearing-types.write` | `204` sans corps ; `400` si version absente/invalide, `404` si absent, `409` si version périmée |
 
 Création, exemple entièrement fictif :
@@ -26,11 +27,28 @@ Création, exemple entièrement fictif :
 
 Le libellé est obligatoire, normalisé par suppression des espaces de bord (`String.strip`), au maximum 120 unités UTF-16 après normalisation. Pas d’unicité imposée au libellé. Durée et pause sont des nombres JSON entiers représentables par un entier Java 32 bits : durée strictement positive, pause positive ou nulle. Une pause de zéro minute signifie qu’aucun temps de pause supplémentaire n’est imposé par ce type. Aucune durée ou pause métier par défaut n’est inventée. `defenderRequired` est un booléen obligatoire ; `false` signifie non requis. Les champs inconnus sont refusés ; les nombres décimaux ne sont pas tronqués et les chaînes ne remplacent pas des nombres/booléens.
 
-La réponse contient ces champs, `id` (UUID généré par le backend) et `version` (entier 64 bits, initialement zéro). Une modification remplace tous les champs éditables et exige la version précédemment lue, obligatoire et positive ou nulle. Le backend incrémente la version. Une mise à jour SQL unique conditionnée par l’identifiant et la version empêche l’écrasement concurrent ; le perdant reçoit `409` et doit recharger. Cela ne résout pas les futures réservations d’auditions.
+La réponse contient ces champs, `id` (UUID généré par le backend), `active` (booléen, initialement `true`) et `version` (entier 64 bits, initialement zéro). `active` n’est pas accepté dans les corps de création ou d’édition : utiliser la route de changement d’état. L’édition des paramètres conserve l’état courant, y compris pour un type inactif. Une modification remplace tous les champs éditables et exige la version précédemment lue, obligatoire et positive ou nulle. Le backend incrémente la version. Une mise à jour SQL unique conditionnée par l’identifiant et la version empêche l’écrasement concurrent ; le perdant reçoit `409` et doit recharger. Cela ne résout pas les futures réservations d’auditions.
 
 Entrée ou UUID invalide : `400`, format `application/problem+json`. Les erreurs de validation de champs comportent `errors`, liste d’objets `field`/`message`, sans valeur rejetée. Les erreurs de syntaxe JSON peuvent être globales. Les erreurs métier utilisent aussi `ProblemDetail`. La sécurité conserve ses réponses Bearer : `401` sans jeton valide, `403` sans droit. Toute autre méthode/route est refusée par défaut.
 
 La pause est propre au type et destinée à tous les intervenants. La règle de transition entre deux types reste ouverte jusqu’au moteur de planification. Aucune audition existante n’est déplacée par ce référentiel.
+
+## Activation, désactivation et filtrage
+
+- `GET /api/hearing-types` et `?active=true` renvoient uniquement les actifs ; `?active=false` renvoie uniquement les inactifs. Aucun état « Tous » n’est introduit dans l’interface.
+- `GET /api/hearing-types/{id}` permet de consulter un type de l’un ou l’autre état avec le droit de lecture.
+- Un type nouvellement créé est toujours actif. Les types présents avant V4 sont également actifs ; leurs identifiants, paramètres et versions sont conservés.
+- Pour désactiver, envoyer à `PUT /api/hearing-types/{id}/status` un corps JSON `{"active":false,"version":0}`, en remplaçant la version par celle réellement lue. Pour réactiver, envoyer `active:true`.
+- Le changement exige `hearing-types.write`, conserve les paramètres, incrémente la version et la compare atomiquement. Une requête sur la version courante demandant l’état déjà présent incrémente également la version ; une ancienne version reçoit `409`. Aucun client ne doit recharger et réessayer silencieusement.
+- La désactivation est réversible et ne supprime pas le type. La suppression physique reste une opération distincte et définitive, disponible selon son contrat existant.
+
+### Conséquences métier et limites actuelles
+
+Le filtre initial de l’interface est **Actifs**. Une désactivation retire la ligne de cette vue. Pour réactiver, sélectionner **Inactifs**, vérifier le type puis confirmer l’activation ; il quitte les inactifs et redevient visible dans **Actifs**.
+
+Règle retenue pour la future planification : un type inactif ne sera pas sélectionnable pour une nouvelle audition. Désactiver ne devra ni annuler ni déplacer les auditions existantes et devra conserver leur référence et leurs paramètres selon le futur contrat de capture. Réactiver ne devra pas non plus modifier ces auditions automatiquement. **Il n’existe pas encore d’API de création d’auditions ni de moteur de planification dans cette livraison** : cette règle est documentée pour leur implémentation, sans prétendre qu’un contrôle inexistant est exécuté aujourd’hui.
+
+Avant d’ajouter des auditions référençant les types, définir et protéger les références contre la suppression physique. La désactivation ne constitue pas un journal d’audit détaillé : aucun auteur ou horodatage de changement n’est stocké dans cette tranche.
 
 ## Installation et vérifications
 
@@ -127,3 +145,13 @@ V1 ajoute une table et des droits, sans transformer les données précédentes. 
 Le DELETE exige la version entière positive ou nulle de la ressource lue. La comparaison et la suppression sont effectuées dans une seule requête SQL : une modification concurrente ne doit pas être supprimée silencieusement. Une version obsolète renvoie 409, sans nouvel essai automatique. Après rechargement, une nouvelle confirmation explicite est nécessaire. La suppression est physique et définitive ; aucun archivage ou undo n’est proposé. Aucun type n’est encore référencé par des auditions dans ce modèle. Avant d’ajouter ces liens, définir les règles de conservation et de suppression des types utilisés, sans introduire de cascade implicite.
 
 Flyway V3 accorde uniquement DELETE sur la table métier au compte auditions_app. V1 et V2 restent inchangées. L’API conserve ses comptes séparés et ne reçoit pas de droit DDL ni d’écriture sur l’historique Flyway. Un revert applicatif ne restaure pas les lignes supprimées : sauvegarde et restauration restent distinctes.
+
+## Migration V4 et reprise
+
+Sauvegarder la base avant la mise à jour, puis reconstruire l’API et le frontend avec les fichiers Compose existants. Flyway applique V4 avec le compte migrateur ; aucun changement de `.env`, de volume ou de rôle SQL n’est nécessaire. Les droits DML existants restent en place. Ne jamais modifier V1/V2/V3 déjà appliquées ni supprimer le volume pour ce changement.
+
+La [documentation PostgreSQL 18 sur l’ajout de colonne](https://www.postgresql.org/docs/18/ddl-alter.html#DDL-ALTER-ADDING-A-COLUMN), consultée le 27 novembre 2026, décrit le comportement du défaut constant pour les lignes existantes. Le contrôle atomique identifiant/version s’appuie sur la réévaluation du prédicat après une mise à jour concurrente en [Read Committed](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED).
+
+Une restauration de sauvegarde se vérifie sur une cible isolée. Ne pas supprimer la colonne ou modifier l’historique Flyway pour revenir en arrière. Un ancien backend ignore le nouvel état et pourrait réafficher les types inactifs ; privilégier un correctif en avant et vérifier le comportement avant tout retour de version. La réussite CI ne constitue pas une migration exécutée sur la VM personnelle.
+
+Le scénario d’intégration de reprise V3→V4 prépare une ligne avant le démarrage de l’API et vérifie ses données après migration. Il exige une base de test isolée et fraîche ; il refuse une base déjà au-delà de V3 plutôt que de la réinitialiser. Ne jamais pointer `TEST_DB_URL` sur la base de développement de la VM pour ces essais.

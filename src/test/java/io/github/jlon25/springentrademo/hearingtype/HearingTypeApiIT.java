@@ -34,6 +34,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sun.net.httpserver.HttpServer;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("postgres")
 class HearingTypeApiIT {
 
+    private static final UUID PRE_V4_ID = UUID.randomUUID();
     private static final String PATH = "/api/hearing-types";
     private static final String READ = "hearing-types.read";
     private static final String WRITE = "hearing-types.write";
@@ -70,6 +72,7 @@ class HearingTypeApiIT {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
+        prepareVersionThreeFixture();
         registry.add("app.security.jwt.issuer", () -> ISSUER);
         registry.add("app.security.jwt.audience", () -> AUDIENCE);
         registry.add("app.security.jwt.jwk-set-uri",
@@ -100,6 +103,7 @@ class HearingTypeApiIT {
         assertThat(resource.get("label")).isEqualTo(label);
         assertThat(number(resource, "version")).isZero();
         assertThat(resource.get("defenderRequired")).isEqualTo(true);
+        assertThat(resource.get("active")).isEqualTo(true);
         assertThat(number(resource, "durationMinutes")).isEqualTo(60);
         assertThat(number(resource, "pauseMinutes")).isEqualTo(15);
 
@@ -223,7 +227,7 @@ class HearingTypeApiIT {
             payload.put("defenderRequired", defenderRequired);
             invalid.add(payload);
         }
-        for (String unknown : List.of("id", "version", "unknownField")) {
+        for (String unknown : List.of("id", "version", "active", "unknownField")) {
             Map<String, Object> payload = validPayload("Fictitious-validation");
             payload.put(unknown, unknown.equals("id") ? UUID.randomUUID().toString() : 0);
             invalid.add(payload);
@@ -435,9 +439,190 @@ class HearingTypeApiIT {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (Connection connection = migratorConnection(); var statement = connection.createStatement();
                 var rows = statement.executeQuery(
-                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version IN ('1', '2', '3') AND success")) {
+                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version IN ('1', '2', '3', '4') AND success")) {
             assertThat(rows.next()).isTrue();
-            assertThat(rows.getInt(1)).isEqualTo(3);
+            assertThat(rows.getInt(1)).isEqualTo(4);
+        }
+    }
+
+
+    @Test
+    void versionFourPreservesPreexistingTypesAsActiveWithoutChangingTheirVersion() throws Exception {
+        Map<?, ?> existing = object(request("GET", PATH + "/" + PRE_V4_ID, null, token(READ)));
+        assertThat(existing.get("label")).isEqualTo("Fictitious-pre-V4");
+        assertThat(existing.get("active")).isEqualTo(true);
+        assertThat(number(existing, "version")).isEqualTo(7);
+        assertThat(number(existing, "durationMinutes")).isEqualTo(90);
+        assertThat(number(existing, "pauseMinutes")).isZero();
+        try (Connection connection = appConnection(); var statement = connection.prepareStatement(
+                "UPDATE auditions.hearing_type SET active = NULL WHERE id = ?")) {
+            statement.setObject(1, PRE_V4_ID);
+            assertThatThrownBy(statement::executeUpdate).isInstanceOfSatisfying(SQLException.class,
+                    error -> assertThat(error.getSQLState()).isEqualTo("23502"));
+        }
+    }
+
+    @Test
+    void statusMovesTypesBetweenFilteredListsAndParameterEditsPreserveTheStatus() throws Exception {
+        Map<?, ?> created = create();
+        String path = PATH + "/" + created.get("id");
+        String id = created.get("id").toString();
+        assertThat(created.get("active")).isEqualTo(true);
+        assertThat(listContains(PATH, id)).isTrue();
+        assertThat(listContains(PATH + "?active=true", id)).isTrue();
+        assertThat(listContains(PATH + "?active=false", id)).isFalse();
+
+        HttpResponse<String> disabled = request("PUT", path + "/status",
+                Map.of("active", false, "version", 0), token(WRITE));
+        assertThat(disabled.statusCode()).isEqualTo(200);
+        Map<?, ?> inactive = object(disabled);
+        assertThat(inactive.get("active")).isEqualTo(false);
+        assertThat(number(inactive, "version")).isEqualTo(1);
+        assertThat(inactive.get("label")).isEqualTo(created.get("label"));
+        assertThat(number(inactive, "durationMinutes")).isEqualTo(number(created, "durationMinutes"));
+        assertThat(number(inactive, "pauseMinutes")).isEqualTo(number(created, "pauseMinutes"));
+        assertThat(inactive.get("defenderRequired")).isEqualTo(created.get("defenderRequired"));
+        assertThat(listContains(PATH, id)).isFalse();
+        assertThat(listContains(PATH + "?active=false", id)).isTrue();
+        assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(inactive);
+
+        Map<String, Object> edit = validPayload("Fictitious-edited-inactive");
+        edit.put("version", 1);
+        assertThat(request("PUT", path, edit, token(WRITE)).statusCode()).isEqualTo(200);
+        Map<?, ?> edited = object(request("GET", path, null, token(READ)));
+        assertThat(edited.get("active")).isEqualTo(false);
+        assertThat(number(edited, "version")).isEqualTo(2);
+        assertProblem(request("PUT", path + "/status", Map.of("active", true, "version", 1), token(WRITE)), 409);
+
+        HttpResponse<String> enabled = request("PUT", path + "/status",
+                Map.of("active", true, "version", 2), token(WRITE));
+        assertThat(enabled.statusCode()).isEqualTo(200);
+        assertThat(object(enabled).get("active")).isEqualTo(true);
+        assertThat(number(object(enabled), "version")).isEqualTo(3);
+        assertThat(listContains(PATH, id)).isTrue();
+        assertThat(listContains(PATH + "?active=false", id)).isFalse();
+
+        // An explicit same-state write still consumes the supplied version.
+        HttpResponse<String> repeatedState = request("PUT", path + "/status",
+                Map.of("active", true, "version", 3), token(WRITE));
+        assertThat(repeatedState.statusCode()).isEqualTo(200);
+        assertThat(number(object(repeatedState), "version")).isEqualTo(4);
+        assertThat(request("DELETE", path + "?version=4", null, token(WRITE)).statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void statusRequiresWriteScopeAndInactiveListsRequireReadScope() throws Exception {
+        Map<?, ?> created = create();
+        String path = PATH + "/" + created.get("id");
+        Map<String, Object> payload = Map.of("active", false, "version", 0);
+        assertThat(request("PUT", path + "/status", payload, null).statusCode()).isEqualTo(401);
+        assertThat(request("PUT", path + "/status", payload, "not-a-jwt").statusCode()).isEqualTo(401);
+        for (String scope : List.of(READ, "api.read")) {
+            assertThat(request("PUT", path + "/status", payload, token(scope)).statusCode()).isEqualTo(403);
+        }
+        assertThat(request("GET", PATH + "?active=false", null, token(WRITE)).statusCode()).isEqualTo(403);
+        assertThat(request("GET", PATH + "?active=false", null, token(READ)).statusCode()).isEqualTo(200);
+        assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(created);
+        assertThat(request("PUT", path + "/status", payload, token(WRITE)).statusCode()).isEqualTo(200);
+        // An inactive record remains removable under the existing DELETE contract.
+        assertThat(request("DELETE", path + "?version=1", null, token(WRITE)).statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    void invalidStatusRequestsAndUnknownReferencesDoNotModifyTheType() throws Exception {
+        Map<?, ?> created = create();
+        String path = PATH + "/" + created.get("id");
+        List<Map<String, Object>> invalid = new ArrayList<>();
+        invalid.add(Map.of());
+        invalid.add(Map.of("active", false));
+        invalid.add(Map.of("version", 0));
+        for (Object active : List.of("false", 0, 1)) {
+            invalid.add(Map.of("active", active, "version", 0));
+        }
+        for (Object version : List.of(-1, 0.5, "0", "invalid")) {
+            invalid.add(Map.of("active", false, "version", version));
+        }
+        for (String field : List.of("active", "version")) {
+            Map<String, Object> nullField = new LinkedHashMap<>(Map.of("active", false, "version", 0));
+            nullField.put(field, null);
+            invalid.add(nullField);
+        }
+        invalid.add(Map.of("active", false, "version", 0, "label", "Unexpected"));
+        for (Map<String, Object> payload : invalid) {
+            assertProblem(request("PUT", path + "/status", payload, token(WRITE)), 400);
+        }
+        assertProblem(rawRequest("PUT", path + "/status", "{", token(WRITE)), 400);
+        assertProblem(request("PUT", PATH + "/not-a-uuid/status",
+                Map.of("active", false, "version", 0), token(WRITE)), 400);
+        assertProblem(request("PUT", PATH + "/" + UUID.randomUUID() + "/status",
+                Map.of("active", false, "version", 0), token(WRITE)), 404);
+        assertProblem(request("GET", PATH + "?active=invalid", null, token(READ)), 400);
+        assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(created);
+        Map<String, Object> edit = validPayload("Fictitious-no-status-in-parameter-edit");
+        edit.put("version", 0);
+        edit.put("active", false);
+        assertProblem(request("PUT", path, edit, token(WRITE)), 400);
+        assertThat(object(request("GET", path, null, token(READ)))).isEqualTo(created);
+    }
+
+    @Test
+    void concurrentStatusAndParameterUpdatesCannotBothConsumeTheSameVersion() throws Exception {
+        Map<?, ?> created = create();
+        String path = PATH + "/" + created.get("id");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        String bearer = token(WRITE);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var status = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Race did not start");
+                return request("PUT", path + "/status", Map.of("active", false, "version", 0), bearer).statusCode();
+            });
+            var edit = executor.submit(() -> concurrentUpdate(path, 61, bearer, ready, start));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(List.of(status.get(20, TimeUnit.SECONDS), edit.get(20, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(200, 409);
+        }
+        Map<?, ?> current = object(request("GET", path, null, token(READ)));
+        assertThat(number(current, "version")).isEqualTo(1);
+        if (Boolean.FALSE.equals(current.get("active"))) {
+            assertThat(number(current, "durationMinutes")).isEqualTo(60);
+        }
+        else {
+            assertThat(number(current, "durationMinutes")).isEqualTo(61);
+        }
+    }
+
+    private boolean listContains(String path, String id) throws Exception {
+        HttpResponse<String> response = request("GET", path, null, token(READ));
+        assertThat(response.statusCode()).isEqualTo(200);
+        List<?> rows = JSON.readValue(response.body(), List.class);
+        return rows.stream().filter(Map.class::isInstance).map(Map.class::cast)
+                .anyMatch(row -> id.equals(row.get("id")));
+    }
+
+    private static void prepareVersionThreeFixture() {
+        // This class requires the disposable CI/test DB. Never downgrade or reset an existing schema.
+        Flyway previous = Flyway.configure()
+                .dataSource(required("TEST_DB_URL"), "auditions_migrator", required("TEST_DB_MIGRATION_PASSWORD"))
+                .schemas("auditions").defaultSchema("auditions").createSchemas(false)
+                .cleanDisabled(true).target("3").load();
+        var current = previous.info().current();
+        if (current != null && current.getVersion().compareTo(MigrationVersion.fromVersion("3")) > 0) {
+            throw new IllegalStateException("Use a fresh isolated database for the V3-to-V4 upgrade test.");
+        }
+        previous.migrate();
+        try (Connection connection = migratorConnection(); var statement = connection.prepareStatement("""
+                INSERT INTO auditions.hearing_type
+                    (id, label, duration_minutes, pause_minutes, defender_required, version)
+                VALUES (?, 'Fictitious-pre-V4', 90, 0, true, 7)
+                """)) {
+            statement.setObject(1, PRE_V4_ID);
+            statement.executeUpdate();
+        }
+        catch (SQLException error) {
+            throw new IllegalStateException("Cannot prepare the isolated pre-V4 fixture.", error);
         }
     }
 

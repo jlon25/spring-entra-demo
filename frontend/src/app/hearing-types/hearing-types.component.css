@@ -1,3 +1,5 @@
+.status-filter { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-block: 1rem; }
+.status-filter select { font: inherit; min-height: 2.75rem; max-width: 100%; padding: .375rem .5rem; border: 1px solid #647581; border-radius: .25rem; background: white; color: inherit; }
 .table-scroll { overflow-x: auto; margin-top: 1rem; }
 table { border-collapse: collapse; width: 100%; min-width: 36rem; text-align: left; }
 caption { text-align: left; font-weight: 600; padding: .75rem 0; }
@@ -56,7 +58,7 @@ tbody th { overflow-wrap: anywhere; }
   .detail-column { display: none; }
   th, td { padding: .625rem .5rem; }
   .actions-cell { width: 7rem; min-width: 0; }
-  .row-actions { flex-wrap: nowrap; justify-content: flex-end; }
+  .row-actions { flex-wrap: wrap; justify-content: flex-end; }
   .row-actions button {
     display: inline-flex;
     align-items: center;

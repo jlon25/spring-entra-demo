@@ -48,11 +48,11 @@ test('keeps the login readable without horizontal page scrolling from mobile to 
 
 test('uses desktop space and keeps the compact mobile table within the page', async ({ page }) => {
   const label = 'Fictitious-responsive-' + 'LongLabel'.repeat(10);
-  await page.route('**/api/hearing-types', async route => {
+  await page.route(url => url.pathname === '/api/hearing-types', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ json: [{
         id: 'responsive-ui-only', label, durationMinutes: 75,
-        pauseMinutes: 0, defenderRequired: true, version: 0
+        pauseMinutes: 0, defenderRequired: true, version: 0, active: true
       }] });
     } else await route.continue();
   });
@@ -108,11 +108,11 @@ test('provides comfortable touch targets without hiding navigation or row action
   });
   const page = await context.newPage();
   try {
-    await page.route('**/api/hearing-types', async route => {
+    await page.route(url => url.pathname === '/api/hearing-types', async route => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ json: [{
           id: 'responsive-touch-ui-only', label: 'Fictitious touch type',
-          durationMinutes: 60, pauseMinutes: 0, defenderRequired: false, version: 0
+          durationMinutes: 60, pauseMinutes: 0, defenderRequired: false, version: 0, active: true
         }] });
       } else await route.continue();
     });
@@ -142,11 +142,11 @@ test('provides comfortable touch targets without hiding navigation or row action
 
 test('shows only labels and named icon actions on mobile while retaining full desktop columns', async ({ page }) => {
   const label = 'Fictitious mobile label ' + 'LongWord'.repeat(8);
-  await page.route('**/api/hearing-types', async route => {
+  await page.route(url => url.pathname === '/api/hearing-types', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ json: [{
         id: 'mobile-columns-ui-only', label, durationMinutes: 75,
-        pauseMinutes: 15, defenderRequired: true, version: 2
+        pauseMinutes: 15, defenderRequired: true, version: 2, active: true
       }] });
     } else await route.continue();
   });

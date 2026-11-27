@@ -49,11 +49,22 @@ export class HearingTypesComponent implements OnInit {
   @ViewChild('deleteCancel') private deleteCancel?: ElementRef<HTMLButtonElement>;
   private editorTrigger: HTMLElement | null = null;
   private deletionTrigger: HTMLElement | null = null;
+  private stateTrigger: HTMLElement | null = null;
+  private listRequestId = 0;
+  @ViewChild('stateDialog') private stateDialog?: ElementRef<HTMLDialogElement>;
+  @ViewChild('stateCancel') private stateCancel?: ElementRef<HTMLButtonElement>;
+  @ViewChild('stateTitle') private stateTitle?: ElementRef<HTMLElement>;
   @ViewChild('deleteTitle') private deleteTitle?: ElementRef<HTMLElement>;
   @ViewChild('listTitle') private listTitle?: ElementRef<HTMLElement>;
   @ViewChild('editorInput') private editorInput?: ElementRef<HTMLInputElement>;
   @ViewChild('errorSummary') private errorSummary?: ElementRef<HTMLElement>;
   readonly types = signal<HearingType[]>([]);
+  readonly activeFilter = signal(true);
+  readonly changingStatus = signal(false);
+  readonly stateChange = signal<HearingType | null>(null);
+  readonly stateBlocked = signal(false);
+  private readonly stateErrorMessage = signal<LocalizedMessage | null>(null);
+  readonly stateError = computed(() => this.i18n.message(this.stateErrorMessage()));
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly reloading = signal(false);
@@ -81,20 +92,39 @@ export class HearingTypesComponent implements OnInit {
   ngOnInit(): void { this.load(); }
 
   load(): void {
-    if (this.loading()) return;
+    const requestId = ++this.listRequestId;
     this.loading.set(true);
+    this.types.set([]);
     this.loadErrorMessage.set(null);
-    this.api.list().pipe(
-      finalize(() => this.loading.set(false)),
+    this.api.list(this.activeFilter()).pipe(
+      finalize(() => { if (requestId === this.listRequestId) this.loading.set(false); }),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
-      next: rows => this.types.set(rows),
-      error: (failure: unknown) => this.loadErrorMessage.set(this.failureMessage(failure, 'load'))
+      next: rows => { if (requestId === this.listRequestId) this.types.set(rows); },
+      error: (failure: unknown) => {
+        if (requestId === this.listRequestId) this.loadErrorMessage.set(this.failureMessage(failure, 'load'));
+      }
     });
   }
 
+  changeFilter(event: Event): void {
+    if (event.target instanceof HTMLSelectElement) {
+      if (event.target.value === 'active' || event.target.value === 'inactive') {
+        this.selectFilter(event.target.value === 'active');
+      }
+    }
+  }
+
+  selectFilter(active: boolean): void {
+    if (this.saving() || this.reloading() || this.deleting() || this.changingStatus()
+        || this.editor() || this.deletion() || this.stateChange() || active === this.activeFilter()) return;
+    this.activeFilter.set(active);
+    this.clearFeedback();
+    this.load();
+  }
+
   create(event?: Event): void {
-    if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.deleting() || this.deletion() !== null) return;
+    if (this.changingStatus() || this.stateChange() !== null || !this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.deleting() || this.deletion() !== null) return;
     this.editorTrigger = this.activeElement(event);
     this.clearFeedback();
     this.editor.set({ id: null, version: null });
@@ -103,7 +133,7 @@ export class HearingTypesComponent implements OnInit {
   }
 
   edit(type: HearingType, event?: Event): void {
-    if (!this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
+    if (this.changingStatus() || this.stateChange() !== null || !this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
     this.editorTrigger = this.activeElement(event);
     this.clearFeedback();
     this.setEditor(type);
@@ -111,14 +141,14 @@ export class HearingTypesComponent implements OnInit {
   }
 
   cancel(): void {
-    if (this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
+    if (this.changingStatus() || this.stateChange() !== null || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
     this.closeEditor();
     this.clearFeedback();
   }
 
   save(): void {
     const editor = this.editor();
-    if (!editor || !this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.conflict() || this.deleting() || this.deletion() !== null) return;
+    if (this.changingStatus() || this.stateChange() !== null || !editor || !this.auth.hasScope('hearing-types.write') || this.saving() || this.reloading() || this.loading() || this.conflict() || this.deleting() || this.deletion() !== null) return;
     this.errorMessage.set(null);
     this.serverErrors.set({});
     this.statusMessage.set(null);
@@ -147,6 +177,7 @@ export class HearingTypesComponent implements OnInit {
         this.closeEditor();
         this.conflict.set(false);
         this.statusMessage.set({ key: 'hearing.saved', params: { label: saved.label } });
+        if (editor.id === null) this.activeFilter.set(true);
         this.load();
       },
       error: (failure: unknown) => {
@@ -166,7 +197,7 @@ export class HearingTypesComponent implements OnInit {
 
   reloadVersion(): void {
     const editor = this.editor();
-    if (!editor?.id || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
+    if (this.changingStatus() || this.stateChange() !== null || !editor?.id || this.saving() || this.reloading() || this.deleting() || this.deletion() !== null) return;
     this.reloading.set(true);
     this.errorMessage.set(null);
     this.api.get(editor.id).pipe(
@@ -187,7 +218,7 @@ export class HearingTypesComponent implements OnInit {
   }
 
   requestDeletion(type: HearingType, event?: Event): void {
-    if (!this.auth.hasScope('hearing-types.write') || this.deleting() || this.deletion()
+    if (this.changingStatus() || this.stateChange() !== null || !this.auth.hasScope('hearing-types.write') || this.deleting() || this.deletion()
         || this.saving() || this.reloading() || this.loading()) return;
     this.deletionTrigger = this.activeElement(event);
     this.deleteErrorMessage.set(null);
@@ -209,7 +240,7 @@ export class HearingTypesComponent implements OnInit {
 
   confirmDeletion(): void {
     const target = this.deletion();
-    if (!target || !this.auth.hasScope('hearing-types.write') || this.deleting()
+    if (this.changingStatus() || this.stateChange() !== null || !target || !this.auth.hasScope('hearing-types.write') || this.deleting()
         || this.deleteBlocked() || this.saving() || this.reloading() || this.loading()) return;
     this.deleting.set(true);
     this.deleteErrorMessage.set(null);
@@ -244,6 +275,73 @@ export class HearingTypesComponent implements OnInit {
     this.load();
   }
 
+  requestStatusChange(type: HearingType, event?: Event): void {
+    if (!this.auth.hasScope('hearing-types.write') || this.changingStatus() || this.stateChange()
+        || this.saving() || this.reloading() || this.loading() || this.deleting() || this.deletion() || this.editor()) return;
+    this.stateTrigger = this.activeElement(event);
+    this.stateErrorMessage.set(null);
+    this.stateBlocked.set(false);
+    this.stateChange.set({ ...type });
+    afterNextRender(() => {
+      const dialog = this.stateDialog?.nativeElement;
+      if (dialog && !dialog.open) dialog.showModal();
+      this.stateCancel?.nativeElement.focus();
+    }, { injector: this.injector });
+  }
+
+  cancelStatusChange(): void {
+    if (this.changingStatus()) return;
+    this.closeStatusChange();
+    this.stateErrorMessage.set(null);
+    this.stateBlocked.set(false);
+  }
+
+  confirmStatusChange(): void {
+    const target = this.stateChange();
+    if (!target || !this.auth.hasScope('hearing-types.write') || this.changingStatus()
+        || this.stateBlocked() || this.saving() || this.reloading() || this.loading() || this.deleting()) return;
+    this.changingStatus.set(true);
+    this.stateErrorMessage.set(null);
+    this.api.setStatus(target.id, !target.active, target.version).pipe(
+      finalize(() => this.changingStatus.set(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: saved => {
+        this.closeStatusChange();
+        this.statusMessage.set({ key: saved.active ? 'hearing.activated' : 'hearing.deactivated',
+          params: { label: saved.label } });
+        this.load();
+      },
+      error: (failure: unknown) => {
+        if (failure instanceof HttpErrorResponse && (failure.status === 409 || failure.status === 404)) {
+          this.stateBlocked.set(true);
+          this.stateErrorMessage.set({ key: failure.status === 409 ? 'hearing.stateConflict' : 'hearing.stateMissing' });
+        } else {
+          this.stateErrorMessage.set(this.failureMessage(failure, 'status'));
+        }
+        afterNextRender(() => this.stateTitle?.nativeElement.focus(), { injector: this.injector });
+      }
+    });
+  }
+
+  reloadForStatusChange(): void {
+    if (this.changingStatus()) return;
+    this.cancelStatusChange();
+    this.load();
+  }
+
+  cancelStateDialog(event: Event): void {
+    event.preventDefault();
+    this.cancelStatusChange();
+  }
+
+  private closeStatusChange(): void {
+    this.stateDialog?.nativeElement.close();
+    this.stateChange.set(null);
+    this.restoreFocus(this.stateTrigger);
+    this.stateTrigger = null;
+  }
+
   fieldError(field: Field): string {
     const server = this.serverErrors()[field];
     if (server) return this.i18n.t(server);
@@ -269,7 +367,7 @@ export class HearingTypesComponent implements OnInit {
     this.serverErrors.set({});
   }
 
-  private failureMessage(failure: unknown, action: 'load' | 'save' | 'reload' | 'delete'): LocalizedMessage {
+  private failureMessage(failure: unknown, action: 'load' | 'save' | 'reload' | 'delete' | 'status'): LocalizedMessage {
     if (failure instanceof HttpErrorResponse) {
       if (failure.status === 401) return { key: 'hearing.unauthorized' };
       if (failure.status === 403) return { key: `hearing.forbidden.${action}` };

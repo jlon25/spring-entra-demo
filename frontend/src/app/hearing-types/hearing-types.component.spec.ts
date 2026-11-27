@@ -10,7 +10,7 @@ import { HearingType } from './hearing-types.service';
 const path = '/api/hearing-types';
 const row: HearingType = {
   id: 'fictitious-type', label: 'Type fictif', durationMinutes: 60,
-  pauseMinutes: 15, defenderRequired: true, version: 2
+  pauseMinutes: 15, defenderRequired: true, version: 2, active: true
 };
 
 describe('Hearing types page with simulated HTTP responses', () => {
@@ -456,6 +456,154 @@ describe('Hearing types page with simulated HTTP responses', () => {
     expect(fixture.nativeElement.querySelector('dialog h2').textContent).toBe('Modifica un tipo');
     expect(fixture.componentInstance.form.controls.label.value).toBe('Type fictif');
     http.expectNone(request => request.method === 'PUT' || request.method === 'DELETE');
+  });
+
+  it('starts with active types and ignores late responses from a previous filter', () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    const active = http.expectOne(path);
+    const page = fixture.componentInstance;
+    expect(page.activeFilter()).toBe(true);
+    page.selectFilter(false);
+    const inactive = http.expectOne(path + '?active=false');
+    inactive.flush([{ ...row, active: false }]);
+    active.flush([{ ...row, id: 'late-active' }]);
+    expect(page.activeFilter()).toBe(false);
+    expect(page.types()).toEqual([{ ...row, active: false }]);
+    expect(page.loading()).toBe(false);
+  });
+
+  it('keeps inactive data editable without implicitly reactivating it', () => {
+    const page = component();
+    page.selectFilter(false);
+    http.expectOne(path + '?active=false').flush([{ ...row, active: false }]);
+    page.edit({ ...row, active: false });
+    page.form.controls.durationMinutes.setValue(75);
+    page.save();
+    const update = http.expectOne(path + '/' + row.id);
+    expect(update.request.body.active).toBeUndefined();
+    update.flush({ ...row, durationMinutes: 75, active: false, version: 3 });
+    http.expectOne(path + '?active=false').flush([{ ...row, durationMinutes: 75, active: false, version: 3 }]);
+    expect(page.activeFilter()).toBe(false);
+    expect(page.types()[0].active).toBe(false);
+  });
+
+  it('returns to the active filter after creating a new type from the inactive view', () => {
+    const page = component();
+    page.selectFilter(false);
+    http.expectOne(path + '?active=false').flush([]);
+    page.create(); valid(page); page.save();
+    const create = http.expectOne(path);
+    expect(create.request.body.active).toBeUndefined();
+    create.flush({ ...row, active: true, version: 0 });
+    expect(page.activeFilter()).toBe(true);
+    http.expectOne(path).flush([{ ...row, active: true, version: 0 }]);
+  });
+
+  it('requires confirmation and cancels a status change without sending a mutation', () => {
+    const page = component();
+    page.requestStatusChange(row);
+    expect(page.stateChange()?.active).toBe(true);
+    page.cancelStatusChange();
+    expect(page.stateChange()).toBeNull();
+    http.expectNone(request => request.method === 'PUT');
+  });
+
+  it('deactivates only the captured version and reloads the current filter once', () => {
+    const page = component();
+    page.requestStatusChange(row);
+    page.confirmStatusChange();
+    page.confirmStatusChange();
+    const update = http.expectOne(path + '/' + row.id + '/status');
+    expect(update.request.body).toEqual({ active: false, version: 2 });
+    expect(page.changingStatus()).toBe(true);
+    page.cancelStatusChange();
+    expect(page.stateChange()).not.toBeNull();
+    update.flush({ ...row, active: false, version: 3 });
+    expect(page.stateChange()).toBeNull();
+    expect(page.changingStatus()).toBe(false);
+    expect(page.status()).toContain('désactivé');
+    http.expectOne(path).flush([]);
+    expect(page.types()).toEqual([]);
+  });
+
+  it('reactivates from the inactive filter without switching back automatically', () => {
+    const page = component();
+    page.selectFilter(false);
+    http.expectOne(path + '?active=false').flush([{ ...row, active: false }]);
+    page.requestStatusChange({ ...row, active: false });
+    page.confirmStatusChange();
+    const update = http.expectOne(path + '/' + row.id + '/status');
+    expect(update.request.body).toEqual({ active: true, version: 2 });
+    update.flush({ ...row, active: true, version: 3 });
+    http.expectOne(path + '?active=false').flush([]);
+    expect(page.activeFilter()).toBe(false);
+    page.selectFilter(true);
+    http.expectOne(path).flush([{ ...row, active: true, version: 3 }]);
+    expect(page.types()[0].active).toBe(true);
+  });
+
+  it('blocks stale or missing status changes until explicit list reload and a new confirmation', () => {
+    const page = component();
+    for (const status of [409, 404]) {
+      page.requestStatusChange(row); page.confirmStatusChange();
+      http.expectOne(path + '/' + row.id + '/status').flush({}, { status, statusText: 'Conflict or missing' });
+      expect(page.stateBlocked()).toBe(true);
+      expect(page.stateChange()?.version).toBe(2);
+      page.confirmStatusChange();
+      http.expectNone(path + '/' + row.id + '/status');
+      page.reloadForStatusChange();
+      http.expectOne(path).flush([{ ...row, version: 3 }]);
+      expect(page.stateChange()).toBeNull();
+    }
+    page.requestStatusChange({ ...row, version: 3 });
+    page.confirmStatusChange();
+    const refreshed = http.expectOne(path + '/' + row.id + '/status');
+    expect(refreshed.request.body.version).toBe(3);
+    refreshed.flush({ ...row, active: false, version: 4 });
+    http.expectOne(path).flush([]);
+  });
+
+  it('does not expose or perform status changes without write permission', async () => {
+    permissions.hasScope.mockReturnValue(false);
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([row]);
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('[aria-label="Désactiver Type fictif"]')).toBeNull();
+    fixture.componentInstance.requestStatusChange(row);
+    fixture.componentInstance.confirmStatusChange();
+    expect(fixture.componentInstance.stateChange()).toBeNull();
+    http.expectNone(request => request.method === 'PUT');
+  });
+
+  it('opens the status dialog with safe focus, preserves it while pending and localizes its explanation', async () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([row]);
+    await fixture.whenStable();
+    const trigger = fixture.nativeElement.querySelector('[aria-label="Désactiver Type fictif"]') as HTMLButtonElement;
+    trigger.click();
+    await fixture.whenStable();
+    const dialog = fixture.nativeElement.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(dialog.getAttribute('aria-labelledby')).toBe('state-title');
+    expect(document.activeElement?.textContent).toBe('Annuler le changement d’état');
+    expect(dialog.textContent).toContain('Aucune audition existante');
+    TestBed.inject(I18nService).setLanguage('de');
+    await fixture.whenStable();
+    expect(dialog.textContent).toContain('Bestehende Anhörungen');
+    fixture.componentInstance.confirmStatusChange();
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    expect(fixture.componentInstance.stateChange()).not.toBeNull();
+    http.expectOne(path + '/' + row.id + '/status').flush({}, { status: 403, statusText: 'Forbidden' });
+    await fixture.whenStable();
+    expect(dialog.open).toBe(true);
+    expect(fixture.componentInstance.stateError()).toContain('Berechtigung');
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
 });
