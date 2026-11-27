@@ -65,7 +65,7 @@
                         [attr.title]="i18n.t(type.active ? 'hearing.deactivateLabel' : 'hearing.activateLabel', { label: type.label })">
                         <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
                           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          @if (type.active) { <path d="M9 5h6v14H9Z" /> } @else { <path d="m8 4 12 8-12 8Z" /> }
+                          @if (type.active) { <path d="M6 5h4v14H6ZM14 5h4v14h-4Z" fill="currentColor" stroke="none" /> } @else { <path d="m8 4 12 8-12 8Z" /> }
                         </svg>
                         <span class="action-label">{{ i18n.t(type.active ? 'hearing.deactivate' : 'hearing.activate') }}</span>
                       </button>
