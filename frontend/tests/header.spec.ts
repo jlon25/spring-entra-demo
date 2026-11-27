@@ -51,7 +51,7 @@ async function expectDesktopZones(page: Page, authenticated: boolean, language: 
     const logout = actions.getByRole('button', { name: copy[language].logout, exact: true });
     const button = await bounds(logout);
     const picker = await bounds(actions.locator('.language-picker'));
-    expect(button.x + button.width).toBeLessThanOrEqual(picker.x);
+    expect(picker.x + picker.width).toBeLessThanOrEqual(button.x);
   } else {
     await expect(actions.getByRole('button')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: copy[language].login, exact: true })).toBeVisible();
@@ -78,11 +78,15 @@ test('centers desktop navigation between the brand and grouped account controls 
       const nav = page.locator('.header-inner').getByRole('navigation');
       await nav.getByRole('link').last().focus();
       await page.keyboard.press('Tab');
+      await expect(page.locator('#language')).toBeFocused();
+      await expect(page.locator('#language')).toHaveAccessibleName(
+        { fr: 'Langue', de: 'Sprache', it: 'Lingua' }[language]
+      );
+      await expect(page.locator('label[for="language"]')).toHaveCount(0);
+      await page.keyboard.press('Tab');
       await expect(page.locator('.header-actions').getByRole('button', {
         name: copy[language].logout, exact: true
       })).toBeFocused();
-      await page.keyboard.press('Tab');
-      await expect(page.locator('#language')).toBeFocused();
     }
   }
 });

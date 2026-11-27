@@ -23,17 +23,16 @@ import { I18nService } from './i18n/i18n.service';
           }
         </nav>
         <div class="header-actions">
-          @if (auth.authenticated()) {
-            <button type="button" (click)="logout()">{{ i18n.t('app.logout') }}</button>
-          }
           <div class="language-picker">
-            <label for="language">{{ i18n.t('app.language') }}</label>
-            <select id="language" [value]="i18n.lang()" (change)="changeLanguage($event)">
+            <select id="language" [attr.aria-label]="i18n.t('app.language')" [value]="i18n.lang()" (change)="changeLanguage($event)">
               <option value="fr" lang="fr">Français</option>
               <option value="de" lang="de">Deutsch</option>
               <option value="it" lang="it">Italiano</option>
             </select>
           </div>
+          @if (auth.authenticated()) {
+            <button type="button" (click)="logout()">{{ i18n.t('app.logout') }}</button>
+          }
         </div>
       </div>
     </header>
