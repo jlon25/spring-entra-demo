@@ -18,18 +18,22 @@ import { I18nService } from './i18n/i18n.service';
             @if (auth.hasScope('hearing-types.read')) {
               <a routerLink="/types-audition" routerLinkActive="active" ariaCurrentWhenActive="page">{{ i18n.t('app.types') }}</a>
             }
-            <button type="button" (click)="logout()">{{ i18n.t('app.logout') }}</button>
           } @else {
             <a routerLink="/login" routerLinkActive="active" ariaCurrentWhenActive="page">{{ i18n.t('app.login') }}</a>
           }
         </nav>
-        <div class="language-picker">
-          <label for="language">{{ i18n.t('app.language') }}</label>
-          <select id="language" [value]="i18n.lang()" (change)="changeLanguage($event)">
-            <option value="fr" lang="fr">Français</option>
-            <option value="de" lang="de">Deutsch</option>
-            <option value="it" lang="it">Italiano</option>
-          </select>
+        <div class="header-actions">
+          @if (auth.authenticated()) {
+            <button type="button" (click)="logout()">{{ i18n.t('app.logout') }}</button>
+          }
+          <div class="language-picker">
+            <label for="language">{{ i18n.t('app.language') }}</label>
+            <select id="language" [value]="i18n.lang()" (change)="changeLanguage($event)">
+              <option value="fr" lang="fr">Français</option>
+              <option value="de" lang="de">Deutsch</option>
+              <option value="it" lang="it">Italiano</option>
+            </select>
+          </div>
         </div>
       </div>
     </header>

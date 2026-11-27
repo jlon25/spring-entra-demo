@@ -78,7 +78,7 @@ test('uses desktop space and keeps the compact mobile table within the page', as
     expect(tableBox.x).toBeGreaterThanOrEqual(0);
     expect(tableBox.x + tableBox.width).toBeLessThanOrEqual(width + 1);
     await expect(typesLink).toBeVisible();
-    await expect(navigation.getByRole('button', { name: 'Se déconnecter', exact: true })).toBeVisible();
+    await expect(page.locator('header').getByRole('button', { name: 'Se déconnecter', exact: true })).toBeVisible();
     if (width === 1920) {
       expect(main.width).toBeGreaterThanOrEqual(width * 0.8);
       expect(main.width).toBeLessThanOrEqual(1601);
@@ -94,7 +94,7 @@ test('uses desktop space and keeps the compact mobile table within the page', as
   await expectNoPageOverflow(page);
   await typesLink.focus();
   await page.keyboard.press('Tab');
-  await expect(navigation.getByRole('button', { name: 'Se déconnecter', exact: true })).toBeFocused();
+  await expect(page.locator('header').getByRole('button', { name: 'Se déconnecter', exact: true })).toBeFocused();
 });
 
 test('provides comfortable touch targets without hiding navigation or row actions', async ({ browser }) => {
