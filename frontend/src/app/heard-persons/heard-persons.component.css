@@ -1,0 +1,25 @@
+.person-table-scroll { overflow-x: auto; margin-top: 1rem; }
+table { width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed; }
+caption { text-align: left; font-weight: 600; padding: .75rem 0; }
+th, td { padding: .625rem .75rem; border-bottom: 1px solid #ccd5dc; vertical-align: middle; overflow-wrap: anywhere; }
+thead { background: #edf3f7; }
+.minority-cell { width: 30%; }
+.person-actions-cell { width: 9rem; }
+.person-edit { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; min-height: 2rem; padding: .375rem .625rem; font-size: .875rem; line-height: 1.25; color: #145e7c; background: #f0f7fa; border-color: #9ab9c9; }
+.person-action-icon { display: block; width: 1.125rem; height: 1.125rem; flex: none; }
+.person-dialog { box-sizing: border-box; width: min(36rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; padding: 1.5rem; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #ccd5dc; border-radius: .5rem; color: inherit; background: white; box-shadow: 0 1rem 3rem rgb(0 0 0 / .25); }
+.person-dialog::backdrop { background: rgb(0 0 0 / .5); }
+.person-dialog h2 { margin-top: 0; overflow-wrap: anywhere; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: .5rem; }
+fieldset p { margin: 0; overflow-wrap: anywhere; }
+select { width: 100%; min-width: 0; min-height: 2.75rem; font: inherit; padding: .5rem; border: 1px solid #647581; border-radius: .25rem; color: inherit; background: white; }
+.person-form-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+@media (max-width: 40rem) {
+  th, td { padding: .625rem .375rem; }
+  .person-actions-cell { width: 3.5rem; }
+  .person-edit { width: 2.75rem; min-width: 2.75rem; min-height: 2.75rem; padding: .5rem; }
+  .person-action-label { display: none; }
+}
+@media (max-width: 30rem) {
+  .person-dialog { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); padding: 1rem; }
+}

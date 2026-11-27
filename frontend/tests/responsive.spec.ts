@@ -94,6 +94,8 @@ test('uses desktop space and keeps the compact mobile table within the page', as
   await expectNoPageOverflow(page);
   await typesLink.focus();
   await page.keyboard.press('Tab');
+  await expect(navigation.getByRole('link', { name: 'Personnes', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(page.locator('#language')).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.locator('header').getByRole('button', { name: 'Se déconnecter', exact: true })).toBeFocused();

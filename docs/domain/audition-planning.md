@@ -12,7 +12,7 @@ L’audition est le besoin à organiser. Pour un lieu d’audition renseigné, s
 
 | Objet conceptuel | Responsabilité et liens |
 | --- | --- |
-| Personne auditionnée | Référence interne et informations strictement utiles : langue(s), genre lorsque pertinent pour le besoin exprimé, statut mineur/majeur. Peut être concernée par plusieurs dossiers. |
+| Personne auditionnée | Référence opaque et informations strictement utiles à l’organisation ; aucune identité civile ni date de naissance stockée. Le premier socle porte le statut mineur/majeur/non renseigné ; langues, genre pertinent et besoins restent à détailler. Peut être concernée par plusieurs dossiers. |
 | Dossier | Regroupe les auditions d’une personne et porte son défenseur habituel éventuel. La continuité du défenseur est limitée à ce dossier. |
 | Audition | Appartient à un dossier ; référence un type, une langue de base DE/FR/IT, un lieu, une période de recherche et des besoins explicites. La définition précise des champs de recherche reste à concevoir. |
 | Type d’audition | Configuration administrable : durée, pause minimale propre au type et règle de défenseur à deux valeurs « requis / non requis ». Le catalogue initial et les valeurs chiffrées restent à définir. |
@@ -120,3 +120,11 @@ Collecter et afficher uniquement les données nécessaires à la planification. 
 Le [premier découpage](first-slice-hearing-types.md) commence par le référentiel des types et de leurs pauses. Les intervenants/disponibilités, dossiers et auditions, puis la proposition sans réservation et sa confirmation backend constituent des tranches ultérieures. Avant chacune, définir les valeurs et contrats nécessaires parmi les questions ouvertes.
 
 Cette tranche peut être présentée par Angular avec une interface simple avant un calendrier avancé. Les règles de défenseur, d’interprétation et les besoins particuliers nécessaires au cas d’usage doivent rester explicites ; ne pas annoncer une planification exhaustive tant qu’ils ne sont pas vérifiables. Les imports/exports, récurrences, optimisation financière complète et intégration Entra demeurent des tâches distinctes.
+
+## Minimisation validée et première fiche de personne
+
+L’utilisateur a retenu le 27 novembre 2026 l’absence d’identité civile dans l’application : ni nom, ni prénom, ni date de naissance. La première tranche enregistre une référence opaque et un statut explicite mineur/majeur/non renseigné, plus l’UUID et la version techniques. Une référence ne doit pas incorporer les données exclues ; son caractère opaque ne garantit pas une anonymisation irréversible si un rapprochement externe reste possible.
+
+Le futur import calculera le statut à partir de la date de naissance source, puis transmettra uniquement les informations nécessaires à l’application. L’import n’est pas encore implémenté ; sa date de référence, ses règles de calcul, le rapprochement et la gestion des mises à jour doivent être définis avant développement. Sans nouvel import ni date stockée, le statut ne se recalcule pas automatiquement. Non renseigné ne vaut pas majeur.
+
+Les langues parlées et les besoins particuliers gardent leur importance pour la future planification, mais leur représentation ne doit pas être inventée dans cette première fiche. Les langues de l’interface ne limitent pas celles de la personne. Les dossiers restent une tranche séparée, une personne pouvant en avoir plusieurs et le défenseur habituel appartenant au dossier.

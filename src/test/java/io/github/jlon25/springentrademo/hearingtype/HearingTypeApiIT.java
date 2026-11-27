@@ -34,7 +34,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sun.net.httpserver.HttpServer;
 import org.flywaydb.core.Flyway;
-import org.flywaydb.core.api.MigrationVersion;
+import io.github.jlon25.springentrademo.support.PostgresIntegrationFixture;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("postgres")
 class HearingTypeApiIT {
 
-    private static final UUID PRE_V4_ID = UUID.randomUUID();
+    private static final UUID PRE_V4_ID = PostgresIntegrationFixture.PRE_V4_HEARING_ID;
     private static final String PATH = "/api/hearing-types";
     private static final String READ = "hearing-types.read";
     private static final String WRITE = "hearing-types.write";
@@ -72,7 +72,7 @@ class HearingTypeApiIT {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        prepareVersionThreeFixture();
+        PostgresIntegrationFixture.prepareVersionThree();
         registry.add("app.security.jwt.issuer", () -> ISSUER);
         registry.add("app.security.jwt.audience", () -> AUDIENCE);
         registry.add("app.security.jwt.jwk-set-uri",
@@ -439,9 +439,9 @@ class HearingTypeApiIT {
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (Connection connection = migratorConnection(); var statement = connection.createStatement();
                 var rows = statement.executeQuery(
-                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version IN ('1', '2', '3', '4') AND success")) {
+                        "SELECT count(*) FROM auditions.flyway_schema_history WHERE version IN ('1', '2', '3', '4', '5') AND success")) {
             assertThat(rows.next()).isTrue();
-            assertThat(rows.getInt(1)).isEqualTo(4);
+            assertThat(rows.getInt(1)).isEqualTo(5);
         }
     }
 
@@ -600,30 +600,6 @@ class HearingTypeApiIT {
         List<?> rows = JSON.readValue(response.body(), List.class);
         return rows.stream().filter(Map.class::isInstance).map(Map.class::cast)
                 .anyMatch(row -> id.equals(row.get("id")));
-    }
-
-    private static void prepareVersionThreeFixture() {
-        // This class requires the disposable CI/test DB. Never downgrade or reset an existing schema.
-        Flyway previous = Flyway.configure()
-                .dataSource(required("TEST_DB_URL"), "auditions_migrator", required("TEST_DB_MIGRATION_PASSWORD"))
-                .schemas("auditions").defaultSchema("auditions").createSchemas(false)
-                .cleanDisabled(true).target("3").load();
-        var current = previous.info().current();
-        if (current != null && current.getVersion().compareTo(MigrationVersion.fromVersion("3")) > 0) {
-            throw new IllegalStateException("Use a fresh isolated database for the V3-to-V4 upgrade test.");
-        }
-        previous.migrate();
-        try (Connection connection = migratorConnection(); var statement = connection.prepareStatement("""
-                INSERT INTO auditions.hearing_type
-                    (id, label, duration_minutes, pause_minutes, defender_required, version)
-                VALUES (?, 'Fictitious-pre-V4', 90, 0, true, 7)
-                """)) {
-            statement.setObject(1, PRE_V4_ID);
-            statement.executeUpdate();
-        }
-        catch (SQLException error) {
-            throw new IllegalStateException("Cannot prepare the isolated pre-V4 fixture.", error);
-        }
     }
 
     private int concurrentUpdate(String path, int duration, String bearer,

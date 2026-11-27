@@ -47,6 +47,12 @@ public class SecurityConfiguration {
                         .hasAuthority("SCOPE_hearing-types.write")
                         .requestMatchers(HttpMethod.DELETE, "/api/hearing-types/{id}")
                         .hasAuthority("SCOPE_hearing-types.write")
+                        .requestMatchers(HttpMethod.GET, "/api/heard-persons", "/api/heard-persons/{id}")
+                        .hasAuthority("SCOPE_heard-persons.read")
+                        .requestMatchers(HttpMethod.POST, "/api/heard-persons")
+                        .hasAuthority("SCOPE_heard-persons.write")
+                        .requestMatchers(HttpMethod.PUT, "/api/heard-persons/{id}")
+                        .hasAuthority("SCOPE_heard-persons.write")
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
                 .build();

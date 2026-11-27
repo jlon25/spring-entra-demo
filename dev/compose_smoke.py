@@ -86,7 +86,7 @@ def verify_stack(api_base, identity_base, username, password):
     password = None
     if not isinstance(token_response, dict) or token_response.get("token_type") != "Bearer":
         raise RuntimeError("Identity provider must return a Bearer token")
-    if token_response.get("scope") != "api.read hearing-types.read hearing-types.write":
+    if token_response.get("scope") != "api.read hearing-types.read hearing-types.write heard-persons.read heard-persons.write":
         raise RuntimeError("Identity provider returned unexpected development permissions")
     lifetime = token_response.get("expires_in")
     if type(lifetime) is not int or lifetime <= 0:

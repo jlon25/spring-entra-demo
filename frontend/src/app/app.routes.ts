@@ -13,6 +13,11 @@ export const routes: Routes = [
     loadComponent: () => import('./hearing-types/hearing-types.component').then(module => module.HearingTypesComponent),
     canActivate: [authGuard]
   },
+  {
+    path: 'personnes-auditionnees',
+    loadComponent: () => import('./heard-persons/heard-persons.component').then(module => module.HeardPersonsComponent),
+    canActivate: [authGuard]
+  },
   { path: '', redirectTo: 'accueil', pathMatch: 'full' },
   { path: '**', redirectTo: 'accueil' }
 ];
