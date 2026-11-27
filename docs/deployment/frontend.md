@@ -39,14 +39,17 @@ Dans PowerShell sur l’hôte Hyper-V :
 & {
     $VmName = 'Ubuntu-26.04'
     $VmUser = 'jerome'
+    # IPv4 privées : 10/8, 172.16/12 et 192.168/16 ; exclut IPv6 et 169.254/16.
+    $Ipv4Octet = '(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+    $PrivateIpv4Pattern = "^(?:10\.$Ipv4Octet\.$Ipv4Octet\.$Ipv4Octet|172\.(?:1[6-9]|2[0-9]|3[01])\.$Ipv4Octet\.$Ipv4Octet|192\.168\.$Ipv4Octet\.$Ipv4Octet)$"
     $VmIps = @(
         Get-VMNetworkAdapter -VMName $VmName -ErrorAction Stop |
             Select-Object -ExpandProperty IPAddresses |
-            Where-Object { $_ -match '^192\.168\.1\.\d{1,3}$' } |
+            Where-Object { $_ -match $PrivateIpv4Pattern } |
             Sort-Object -Unique
     )
     if ($VmIps.Count -ne 1) {
-        throw "Impossible de choisir une IP unique : vérifier KVP et le filtre réseau."
+        throw "Impossible de choisir une IPv4 privée unique ($($VmIps.Count) trouvée(s) : $($VmIps -join ', ')). Vérifier KVP et les interfaces, ou choisir manuellement l’adresse de la carte réseau de la VM."
     }
     ssh -N -o ExitOnForwardFailure=yes `
         -L 127.0.0.1:8080:127.0.0.1:8080 `
@@ -56,7 +59,7 @@ Dans PowerShell sur l’hôte Hyper-V :
 }
 ```
 
-Adapter nom Hyper-V, compte et filtre au réseau actuel. En cas d’IP vide, suivre le [diagnostic KVP et le repli manuel](docker-hyperv.md#récupérer-automatiquement-lip-hyper-v-et-ouvrir-le-tunnel). Si les ports hôtes du `.env` changent, adapter les ports de destination des tunnels. Vérifier la clé hôte, saisir le mot de passe **SSH** et garder cette fenêtre ouverte.
+Adapter le nom Hyper-V et le compte. Le filtre prend en charge `10.0.0.0/8`, `172.16.0.0/12` (deuxième octet de 16 à 31) et `192.168.0.0/16`, dont `10.194.213.217` et `172.20.10.9`. Il exclut les adresses publiques, loopback, IPv6 et `169.254.x.x`. Si plusieurs adresses correspondent, examiner les interfaces Hyper-V ou choisir manuellement l’adresse de la carte réseau de la VM ; ne pas sélectionner arbitrairement la première. En cas d’IP vide, suivre le [diagnostic KVP et le repli manuel](docker-hyperv.md#récupérer-automatiquement-lip-hyper-v-et-ouvrir-le-tunnel). Si les ports hôtes du `.env` changent, adapter les ports de destination des tunnels. Vérifier la clé hôte, saisir le mot de passe **SSH** et garder cette fenêtre ouverte.
 
 Ouvrir **http://127.0.0.1:4200** dans le navigateur Windows :
 
