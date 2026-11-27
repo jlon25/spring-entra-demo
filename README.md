@@ -331,7 +331,7 @@ La suppression d’un type demande une confirmation explicite et vérifie sa ver
 
 Angular restaure la session valide dans le même onglet via `sessionStorage`, sans modifier l’expiration du jeton. Déconnexion, expiration ou401 API effacent cet état. Aucun mot de passe n’est conservé ; les jetons ne sont jamais placés dans `localStorage`. Seule la préférence de langue non sensible peut y être mémorisée. Si le navigateur bloque le stockage, la session reste utilisable en mémoire mais sera perdue au rafraîchissement. Voir le [guide frontend](docs/deployment/frontend.md#architecture-et-sécurité) pour les limites et le choix de stockage.
 
-Les boutons du tableau sont plus compacts et séparés ; le tableau reste défilable sur petit écran. Aucun nouveau paramètre .env, migration ou changement de backend. Les mêmes commandes Compose reconstruisent le frontend après récupération de la branche à tester.
+Les boutons du tableau sont plus compacts et séparés ; le tableau reste défilable sur petit écran. Aucun nouveau paramètre `.env` ; la migration V4 et le contrat de changement d’état sont décrits ci-dessous. Les mêmes commandes Compose reconstruisent le frontend après récupération de la branche à tester.
 
 ## Types actifs et inactifs
 
