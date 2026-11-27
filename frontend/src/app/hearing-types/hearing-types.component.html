@@ -1,55 +1,55 @@
 <section aria-labelledby="types-title">
-  <h1 #listTitle id="types-title" tabindex="-1">Types d’audition</h1>
-  <p>Configurez la durée, la pause minimale et la présence du défenseur pour chaque type.</p>
+  <h1 #listTitle id="types-title" tabindex="-1">{{ i18n.t('hearing.title') }}</h1>
+  <p>{{ i18n.t('hearing.description') }}</p>
   @if (auth.hasScope('hearing-types.write')) {
-    <button type="button" (click)="create($event)" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">Nouveau type</button>
+    <button type="button" (click)="create($event)" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">{{ i18n.t('hearing.new') }}</button>
   } @else {
-    <p>Consultation uniquement : vous ne disposez pas du droit de modification.</p>
+    <p>{{ i18n.t('hearing.readonly') }}</p>
   }
   @if (status() && editor() === null) { <p role="status">{{ status() }}</p> }
   <div [attr.aria-busy]="loading()">
-    @if (loading()) { <p role="status">Chargement des types…</p> }
+    @if (loading()) { <p role="status">{{ i18n.t('hearing.loading') }}</p> }
     @if (loadError()) {
       <p role="alert">{{ loadError() }}</p>
-      <button type="button" (click)="load()" [disabled]="loading() || saving() || reloading()">Réessayer</button>
+      <button type="button" (click)="load()" [disabled]="loading() || saving() || reloading()">{{ i18n.t('hearing.retry') }}</button>
     } @else if (!loading() && types().length === 0) {
-      <p>Aucun type d’audition n’est configuré.</p>
+      <p>{{ i18n.t('hearing.empty') }}</p>
     }
     @if (types().length > 0) {
-      <div class="table-scroll" tabindex="0" aria-label="Liste des types d’audition">
+      <div class="table-scroll" tabindex="0" [attr.aria-label]="i18n.t('hearing.listLabel')">
         <table>
-          <caption>Référentiel des types d’audition</caption>
+          <caption>{{ i18n.t('hearing.caption') }}</caption>
           <thead><tr>
-            <th scope="col">Libellé</th><th class="detail-column" scope="col">Durée (minutes)</th>
-            <th class="detail-column" scope="col">Pause (minutes)</th><th class="detail-column" scope="col">Défenseur</th>
-            @if (auth.hasScope('hearing-types.write')) { <th scope="col">Actions</th> }
+            <th scope="col">{{ i18n.t('hearing.label') }}</th><th class="detail-column" scope="col">{{ i18n.t('hearing.duration') }}</th>
+            <th class="detail-column" scope="col">{{ i18n.t('hearing.pause') }}</th><th class="detail-column" scope="col">{{ i18n.t('hearing.defender') }}</th>
+            @if (auth.hasScope('hearing-types.write')) { <th scope="col">{{ i18n.t('hearing.actions') }}</th> }
           </tr></thead>
           <tbody>
             @for (type of types(); track type.id) {
               <tr>
                 <th scope="row">{{ type.label }}</th>
                 <td class="detail-column">{{ type.durationMinutes }}</td><td class="detail-column">{{ type.pauseMinutes }}</td>
-                <td class="detail-column">{{ type.defenderRequired ? 'Requis' : 'Non requis' }}</td>
+                <td class="detail-column">{{ i18n.t(type.defenderRequired ? 'hearing.required' : 'hearing.notRequired') }}</td>
                 @if (auth.hasScope('hearing-types.write')) {
                   <td class="actions-cell">
                     <div class="row-actions">
                       <button type="button" class="button-secondary" (click)="edit(type, $event)"
                         [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
-                        [attr.aria-label]="'Modifier ' + type.label" [attr.title]="'Modifier ' + type.label">
+                        [attr.aria-label]="i18n.t('hearing.editLabel', { label: type.label })" [attr.title]="i18n.t('hearing.editLabel', { label: type.label })">
                         <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
                           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="m16 3 5 5-12 12-6 1 1-6Z" /><path d="m14 5 5 5" />
                         </svg>
-                        <span class="action-label">Modifier</span>
+                        <span class="action-label">{{ i18n.t('hearing.edit') }}</span>
                       </button>
                       <button type="button" class="button-danger" (click)="requestDeletion(type, $event)"
                         [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null"
-                        [attr.aria-label]="'Supprimer ' + type.label" [attr.title]="'Supprimer ' + type.label">
+                        [attr.aria-label]="i18n.t('hearing.deleteLabel', { label: type.label })" [attr.title]="i18n.t('hearing.deleteLabel', { label: type.label })">
                         <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
                           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
                         </svg>
-                        <span class="action-label">Supprimer</span>
+                        <span class="action-label">{{ i18n.t('hearing.delete') }}</span>
                       </button>
                     </div>
                   </td>
@@ -64,57 +64,57 @@
   @if (deletion(); as target) {
     <dialog #deleteDialog class="type-dialog delete-dialog" tabindex="-1" (keydown)="trapDialogFocus($event)" aria-labelledby="delete-title"
       aria-describedby="delete-description" [attr.aria-busy]="deleting()" (cancel)="cancelDeleteDialog($event)">
-      <h2 #deleteTitle id="delete-title" tabindex="-1">Supprimer le type « {{ target.label }} » ?</h2>
-      <p id="delete-description">Cette suppression est définitive. Vérifiez le type avant de confirmer.</p>
+      <h2 #deleteTitle id="delete-title" tabindex="-1">{{ i18n.t('hearing.deleteTitle', { label: target.label }) }}</h2>
+      <p id="delete-description">{{ i18n.t('hearing.deleteDescription') }}</p>
       @if (deleteError()) { <p role="alert">{{ deleteError() }}</p> }
       @if (deleteBlocked()) {
-        <button type="button" (click)="reloadForDeletion()" [disabled]="deleting()">Recharger les types</button>
+        <button type="button" (click)="reloadForDeletion()" [disabled]="deleting()">{{ i18n.t('hearing.reloadList') }}</button>
       }
       <button type="button" (click)="confirmDeletion()" [disabled]="deleting() || deleteBlocked()">
-        {{ deleting() ? 'Suppression…' : 'Confirmer la suppression' }}
+        {{ i18n.t(deleting() ? 'hearing.deleting' : 'hearing.confirmDelete') }}
       </button>
-      <button #deleteCancel type="button" (click)="cancelDeletion()" [disabled]="deleting()">Annuler la suppression</button>
+      <button #deleteCancel type="button" (click)="cancelDeletion()" [disabled]="deleting()">{{ i18n.t('hearing.cancelDelete') }}</button>
     </dialog>
   }
   @if (editor(); as current) {
     <dialog #editorDialog class="type-dialog editor" tabindex="-1" (keydown)="trapDialogFocus($event)" aria-labelledby="editor-title"
       (cancel)="cancelEditorDialog($event)">
-      <h2 #editorTitle id="editor-title" tabindex="-1">{{ current.id === null ? 'Créer un type' : 'Modifier un type' }}</h2>
+      <h2 #editorTitle id="editor-title" tabindex="-1">{{ i18n.t(current.id === null ? 'hearing.createTitle' : 'hearing.editTitle') }}</h2>
       @if (status()) { <p role="status">{{ status() }}</p> }
       <form novalidate [formGroup]="form" (ngSubmit)="save()" [attr.aria-busy]="saving() || reloading()">
         @if (error()) { <p #errorSummary role="alert" tabindex="-1">{{ error() }}</p> }
         @if (conflict()) {
-          <p>Recharger remplacera votre saisie par les valeurs du serveur.</p>
+          <p>{{ i18n.t('hearing.reloadWarning') }}</p>
           <button type="button" (click)="reloadVersion()" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">
-            Recharger la version serveur
+            {{ i18n.t('hearing.reloadVersion') }}
           </button>
         }
         <fieldset [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">
-          <legend>Paramètres du type</legend>
-          <label for="type-label">Libellé</label>
+          <legend>{{ i18n.t('hearing.settings') }}</legend>
+          <label for="type-label">{{ i18n.t('hearing.label') }}</label>
           <input #editorInput id="type-label" formControlName="label" aria-describedby="type-label-error"
             [attr.aria-invalid]="!!fieldError('label')">
           <p id="type-label-error" class="field-error">{{ fieldError('label') }}</p>
-          <label for="type-duration">Durée (minutes)</label>
+          <label for="type-duration">{{ i18n.t('hearing.duration') }}</label>
           <input id="type-duration" type="number" min="1" max="2147483647" step="1"
             formControlName="durationMinutes" aria-describedby="type-duration-error"
             [attr.aria-invalid]="!!fieldError('durationMinutes')">
           <p id="type-duration-error" class="field-error">{{ fieldError('durationMinutes') }}</p>
-          <label for="type-pause">Pause minimale (minutes)</label>
+          <label for="type-pause">{{ i18n.t('hearing.minimumPause') }}</label>
           <input id="type-pause" type="number" min="0" max="2147483647" step="1"
             formControlName="pauseMinutes" aria-describedby="type-pause-error"
             [attr.aria-invalid]="!!fieldError('pauseMinutes')">
           <p id="type-pause-error" class="field-error">{{ fieldError('pauseMinutes') }}</p>
           <label class="checkbox" for="type-defender">
             <input id="type-defender" type="checkbox" formControlName="defenderRequired"
-              aria-describedby="type-defender-error" [attr.aria-invalid]="!!fieldError('defenderRequired')"> Défenseur requis
+              aria-describedby="type-defender-error" [attr.aria-invalid]="!!fieldError('defenderRequired')"> {{ i18n.t('hearing.defenderRequired') }}
           </label>
           <p id="type-defender-error" class="field-error">{{ fieldError('defenderRequired') }}</p>
           <div class="actions">
             <button type="submit" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null || conflict()">
-              {{ saving() ? 'Enregistrement…' : 'Enregistrer' }}
+              {{ i18n.t(saving() ? 'hearing.saving' : 'hearing.save') }}
             </button>
-            <button type="button" (click)="cancel()" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">Annuler</button>
+            <button type="button" (click)="cancel()" [disabled]="saving() || reloading() || loading() || deleting() || deletion() !== null">{{ i18n.t('hearing.cancel') }}</button>
           </div>
         </fieldset>
       </form>

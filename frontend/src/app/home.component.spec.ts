@@ -3,12 +3,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HomeComponent } from './home.component';
+import { I18nService, LANGUAGE_STORAGE } from './i18n/i18n.service';
 
 describe('Protected API feedback', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [HomeComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: LANGUAGE_STORAGE, useValue: null }]
     });
   });
   afterEach(() => TestBed.inject(HttpTestingController).verify());
@@ -34,5 +35,16 @@ describe('Protected API feedback', () => {
     component.checkApi();
     TestBed.inject(HttpTestingController).expectOne('/api/message').error(new ProgressEvent('error'));
     expect(component.error()).toContain('L’API est inaccessible');
+  });
+  it('translates an existing API error without making a new request', () => {
+    const component = TestBed.createComponent(HomeComponent).componentInstance;
+    component.checkApi();
+    TestBed.inject(HttpTestingController).expectOne('/api/message')
+      .flush({}, { status: 403, statusText: 'Forbidden' });
+    TestBed.inject(I18nService).setLanguage('de');
+    expect(component.error()).toBe('Ihre Sitzung ist gültig, aber Ihre Berechtigungen reichen nicht aus.');
+    TestBed.inject(I18nService).setLanguage('it');
+    expect(component.error()).toBe('La sessione è valida, ma le autorizzazioni non sono sufficienti.');
+    TestBed.inject(HttpTestingController).expectNone('/api/message');
   });
 });

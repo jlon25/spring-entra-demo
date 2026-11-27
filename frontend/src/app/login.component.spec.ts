@@ -5,12 +5,13 @@ import { Router, provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LoginComponent } from './login.component';
 import { AuthService } from './auth.service';
+import { I18nService, LANGUAGE_STORAGE } from './i18n/i18n.service';
 
 describe('Local login form', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [LoginComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), { provide: LANGUAGE_STORAGE, useValue: null }]
     });
   });
   afterEach(() => {
@@ -70,4 +71,22 @@ describe('Local login form', () => {
     expect(component.error()).toContain('Service inaccessible');
     expect(component.form.controls.password.value).toBe('');
   });
+  it('translates an already displayed login error without resubmitting or clearing the username', async () => {
+    const fixture = TestBed.createComponent(LoginComponent);
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    component.form.setValue({ username: 'fictitious-user', password: 'fictitious-wrong-password' });
+    component.submit();
+    TestBed.inject(HttpTestingController).expectOne('/identity/token')
+      .flush({}, { status: 401, statusText: 'Unauthorized' });
+    TestBed.inject(I18nService).setLanguage('de');
+    await fixture.whenStable();
+    expect(component.error()).toBe('Benutzername oder Passwort ist falsch.');
+    expect(component.form.controls.username.value).toBe('fictitious-user');
+    expect(fixture.nativeElement.querySelector('h1').textContent).toContain('Lokale Anmeldung');
+    TestBed.inject(HttpTestingController).expectNone('/identity/token');
+    TestBed.inject(I18nService).setLanguage('it');
+    expect(component.error()).toBe('Nome utente o password errati.');
+  });
+
 });

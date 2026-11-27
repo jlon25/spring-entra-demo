@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from '../auth.service';
+import { I18nService, LANGUAGE_STORAGE } from '../i18n/i18n.service';
 import { HearingTypesComponent } from './hearing-types.component';
 import { HearingType } from './hearing-types.service';
 
@@ -27,11 +28,13 @@ describe('Hearing types page with simulated HTTP responses', () => {
     permissions.hasScope.mockReset().mockReturnValue(true);
     TestBed.configureTestingModule({
       imports: [HearingTypesComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: permissions }]
+      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: permissions },
+        { provide: LANGUAGE_STORAGE, useValue: null }]
     });
+    TestBed.inject(I18nService).setLanguage('fr');
     http = TestBed.inject(HttpTestingController);
   });
-  afterEach(() => { http.verify(); vi.restoreAllMocks(); });
+  afterEach(() => { TestBed.inject(I18nService).setLanguage('fr'); http.verify(); vi.restoreAllMocks(); });
 
   function component(): HearingTypesComponent {
     const fixture = TestBed.createComponent(HearingTypesComponent);
@@ -168,7 +171,8 @@ describe('Hearing types page with simulated HTTP responses', () => {
     http.expectOne(path).flush({
       errors: [{ field: 'label', message: 'Libellé refusé.' }, { field: 'ignored', message: 'Ignored' }]
     }, { status: 400, statusText: 'Bad Request' });
-    expect(page.fieldError('label')).toBe('Libellé refusé.');
+    expect(page.fieldError('label')).toBe(TestBed.inject(I18nService).t('hearing.field.label'));
+    expect(page.fieldError('label')).not.toContain('Libellé refusé.');
     expect(page.form.controls.label.value).toBe('  Nouveau fictif  ');
     expect(page.error()).toContain('serveur');
   });
@@ -397,6 +401,61 @@ describe('Hearing types page with simulated HTTP responses', () => {
     expect(document.activeElement).toBe(dialog);
     http.expectOne(path).flush({ ...row, version: 0 });
     http.expectOne(path).flush([]);
+  });
+
+  it('retranslates a visible conflict without changing the draft, version or HTTP requests', () => {
+    const page = component();
+    page.edit(row);
+    page.form.controls.label.setValue('Donnée personnelle fictive');
+    page.save();
+    http.expectOne(path + '/' + row.id).flush({}, { status: 409, statusText: 'Conflict' });
+    const i18n = TestBed.inject(I18nService);
+    expect(page.error()).toContain('Votre saisie est conservée');
+    i18n.setLanguage('de');
+    expect(page.error()).toContain('Ihre Eingaben bleiben erhalten');
+    i18n.setLanguage('it');
+    expect(page.error()).toContain('I dati inseriti sono conservati');
+    expect(page.form.controls.label.value).toBe('Donnée personnelle fictive');
+    expect(page.editor()?.version).toBe(2);
+    expect(page.conflict()).toBe(true);
+    page.save();
+    http.expectNone(path + '/' + row.id);
+  });
+
+  it('localizes server validation by field and never renders untranslated server prose', () => {
+    const page = component();
+    page.create(); valid(page); page.save();
+    http.expectOne(path).flush({
+      errors: [{ field: 'label', message: '<script>private-server-text</script>' }]
+    }, { status: 400, statusText: 'Bad Request' });
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLanguage('de');
+    expect(page.fieldError('label')).toBe(i18n.t('hearing.field.label'));
+    expect(page.fieldError('label')).not.toContain('private-server-text');
+    i18n.setLanguage('it');
+    expect(page.fieldError('label')).toBe(i18n.t('hearing.field.label'));
+    expect(page.error()).toBe(i18n.t('hearing.badRequest'));
+    expect(page.form.controls.label.value).toBe('  Nouveau fictif  ');
+  });
+
+  it('updates action names and modal labels without translating stored data', async () => {
+    const fixture = TestBed.createComponent(HearingTypesComponent);
+    fixture.detectChanges();
+    http.expectOne(path).flush([row]);
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLanguage('de');
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('h1').textContent).toBe('Anhörungstypen');
+    const edit = fixture.nativeElement.querySelector('[aria-label="Type fictif bearbeiten"]') as HTMLButtonElement;
+    expect(edit).not.toBeNull();
+    edit.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.form.controls.label.value).toBe('Type fictif');
+    i18n.setLanguage('it');
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('dialog h2').textContent).toBe('Modifica un tipo');
+    expect(fixture.componentInstance.form.controls.label.value).toBe('Type fictif');
+    http.expectNone(request => request.method === 'PUT' || request.method === 'DELETE');
   });
 
 });
