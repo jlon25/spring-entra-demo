@@ -18,6 +18,9 @@ import { I18nService } from './i18n/i18n.service';
             @if (auth.hasScope('hearing-types.read')) {
               <a routerLink="/types-audition" routerLinkActive="active" ariaCurrentWhenActive="page">{{ i18n.t('app.types') }}</a>
             }
+            @if (auth.hasScope('heard-persons.read')) {
+              <a routerLink="/personnes-auditionnees" routerLinkActive="active" ariaCurrentWhenActive="page">{{ i18n.t('app.persons') }}</a>
+            }
           } @else {
             <a routerLink="/login" routerLinkActive="active" ariaCurrentWhenActive="page">{{ i18n.t('app.login') }}</a>
           }

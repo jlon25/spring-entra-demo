@@ -1,0 +1,89 @@
+<section aria-labelledby="persons-title">
+  <h1 #listTitle id="persons-title" tabindex="-1">{{ i18n.t('persons.title') }}</h1>
+  <p>{{ i18n.t('persons.description') }}</p>
+  @if (auth.hasScope('heard-persons.write')) {
+    <button type="button" (click)="create($event)" [disabled]="loading() || saving() || reloading() || editor() !== null">{{ i18n.t('persons.new') }}</button>
+  } @else {
+    <p>{{ i18n.t('persons.readonly') }}</p>
+  }
+  @if (status() && editor() === null) { <p role="status">{{ status() }}</p> }
+  <div [attr.aria-busy]="loading()">
+    @if (loading()) { <p role="status">{{ i18n.t('persons.loading') }}</p> }
+    @if (loadError()) {
+      <p role="alert">{{ loadError() }}</p>
+      <button type="button" (click)="load()" [disabled]="loading() || saving() || reloading()">{{ i18n.t('persons.retry') }}</button>
+    } @else if (!loading() && persons().length === 0) {
+      <p>{{ i18n.t('persons.empty') }}</p>
+    }
+    @if (persons().length > 0) {
+      <div class="person-table-scroll" tabindex="0" [attr.aria-label]="i18n.t('persons.listLabel')">
+        <table>
+          <caption>{{ i18n.t('persons.caption') }}</caption>
+          <thead><tr>
+            <th scope="col">{{ i18n.t('persons.reference') }}</th>
+            <th scope="col" class="minority-cell">{{ i18n.t('persons.minority') }}</th>
+            @if (auth.hasScope('heard-persons.write')) { <th scope="col" class="person-actions-cell">{{ i18n.t('persons.actions') }}</th> }
+          </tr></thead>
+          <tbody>
+            @for (person of persons(); track person.id) {
+              <tr>
+                <th scope="row">{{ person.reference }}</th>
+                <td class="minority-cell">{{ minorityLabel(person.minorityStatus) }}</td>
+                @if (auth.hasScope('heard-persons.write')) {
+                  <td class="person-actions-cell">
+                    <button type="button" class="person-edit" (click)="edit(person, $event)"
+                      [disabled]="loading() || saving() || reloading() || editor() !== null"
+                      [attr.aria-label]="i18n.t('persons.editLabel', { reference: person.reference })"
+                      [attr.title]="i18n.t('persons.editLabel', { reference: person.reference })">
+                      <svg class="person-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m16 3 5 5-12 12-6 1 1-6Z" /><path d="m14 5 5 5" />
+                      </svg>
+                      <span class="person-action-label">{{ i18n.t('persons.edit') }}</span>
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+  @if (editor(); as current) {
+    <dialog #editorDialog class="person-dialog" tabindex="-1" aria-labelledby="person-editor-title"
+      (cancel)="cancelDialog($event)" (keydown)="trapDialogFocus($event)">
+      <h2 id="person-editor-title">{{ i18n.t(current.id === null ? 'persons.createTitle' : 'persons.editTitle') }}</h2>
+      @if (status()) { <p role="status">{{ status() }}</p> }
+      <form novalidate [formGroup]="form" (ngSubmit)="save()" [attr.aria-busy]="saving() || reloading()">
+        @if (error()) { <p #errorSummary role="alert" tabindex="-1">{{ error() }}</p> }
+        @if (conflict()) {
+          <p>{{ i18n.t('persons.reloadWarning') }}</p>
+          <button type="button" (click)="reloadVersion()" [disabled]="saving() || reloading()">
+            {{ i18n.t('persons.reloadVersion') }}
+          </button>
+        }
+        <fieldset [disabled]="saving() || reloading()">
+          <label for="person-reference">{{ i18n.t('persons.reference') }}</label>
+          <input #referenceInput id="person-reference" formControlName="reference" autocomplete="off"
+            aria-describedby="person-reference-help person-reference-error" [attr.aria-invalid]="!!fieldError('reference')">
+          <p id="person-reference-help">{{ i18n.t('persons.referenceHelp') }}</p>
+          <p id="person-reference-error" class="field-error">{{ fieldError('reference') }}</p>
+          <label for="person-minority">{{ i18n.t('persons.minority') }}</label>
+          <select id="person-minority" formControlName="minorityStatus"
+            aria-describedby="person-minority-help person-minority-error" [attr.aria-invalid]="!!fieldError('minorityStatus')">
+            <option value="UNKNOWN">{{ i18n.t('persons.unknown') }}</option>
+            <option value="MINOR">{{ i18n.t('persons.minor') }}</option>
+            <option value="ADULT">{{ i18n.t('persons.adult') }}</option>
+          </select>
+          <p id="person-minority-help">{{ i18n.t('persons.minorityHelp') }}</p>
+          <p id="person-minority-error" class="field-error">{{ fieldError('minorityStatus') }}</p>
+          <div class="person-form-actions">
+            <button type="submit" [disabled]="saving() || reloading() || conflict()">{{ i18n.t(saving() ? 'persons.saving' : 'persons.save') }}</button>
+            <button type="button" (click)="cancel()" [disabled]="saving() || reloading()">{{ i18n.t('persons.cancel') }}</button>
+          </div>
+        </fieldset>
+      </form>
+    </dialog>
+  }
+</section>

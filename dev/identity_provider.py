@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 
 
 # Fixed permissions of the one development account; never selected by the client.
-DEV_SCOPES = "api.read hearing-types.read hearing-types.write"
+DEV_SCOPES = "api.read hearing-types.read hearing-types.write heard-persons.read heard-persons.write"
 DEFAULT_TOKEN_TTL_SECONDS = 300
 MAX_TOKEN_TTL_SECONDS = 86400
 

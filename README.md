@@ -41,7 +41,7 @@ python3 dev/compose_smoke.py
 
 Le script utilise les ports par défaut et `local-user`. Pour un autre compte, exporter `DEV_IDENTITY_USERNAME`. La CI fournit un mot de passe éphémère par variable d’environnement ; en terminal il est demandé si cette variable n’est pas définie. Le script ne charge pas `.env` : pour un utilisateur autre que `local-user`, exporter `DEV_IDENTITY_USERNAME` dans le terminal de test.
 
-Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in` (durée configurée en secondes) et `scope: api.read hearing-types.read hearing-types.write`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
+Contrat de connexion : `POST http://127.0.0.1:9000/token`, `Content-Type: application/json`, objet avec uniquement les champs texte `username` et `password`. Réponse valide : `200` avec `access_token`, `token_type: Bearer`, `expires_in` (durée configurée en secondes) et `scope: api.read hearing-types.read hearing-types.write heard-persons.read heard-persons.write`. Mauvais identifiants : `401` générique sans jeton. Les entrées mal formées sont rejetées. Le client ne peut choisir ni sujet, audience ni scope.
 
 
 ## Contrat de sécurité
@@ -338,3 +338,11 @@ Les boutons du tableau sont plus compacts et séparés ; le tableau reste défil
 L’écran affiche les **Actifs** par défaut. Pour retrouver un type désactivé et le réactiver, sélectionner **Inactifs**, puis confirmer **Activer**. Chaque changement d’état conserve les paramètres et contrôle la version ; la ligne quitte la vue courante après succès. Consulter les [conséquences et essais](docs/frontend/hearing-types.md#filtrer-désactiver-et-réactiver) et le [contrat API](docs/api/hearing-types.md#activation-désactivation-et-filtrage).
 
 La désactivation conserve le type et permettra de l’exclure des nouvelles auditions ; elle ne devra pas modifier les auditions existantes. La planification n’est pas encore implémentée. Reconstruire API et frontend pour appliquer V4 et l’interface, conserver le volume et le `.env`, et sauvegarder la base avant mise à jour. Une suppression reste distincte et définitive.
+
+## Personnes auditionnées : données minimales
+
+Le menu **Personnes** permet de créer, consulter et modifier une fiche composée d’une référence opaque et du statut **Mineur / Majeur / Non renseigné**. Aucun nom, prénom ou date de naissance n’est stocké. Les droits `heard-persons.read` et `heard-persons.write` sont distincts de ceux des types.
+
+La migration V5 crée le stockage dédié ; le simulateur local reçoit les deux nouveaux droits. Reconstruire API, identité et frontend, puis se reconnecter. Conserver `.env` et les volumes. Voir le [guide frontend](docs/frontend/heard-persons.md) et le [contrat API](docs/api/heard-persons.md).
+
+L’import sera développé ultérieurement : il calculera le statut depuis sa date source sans enregistrer la date de naissance. Le statut actuel ne s’actualise pas automatiquement avec le temps ; **Non renseigné** ne signifie pas **Majeur**. Dossiers, suppression de personne et planification restent hors de cette tranche.

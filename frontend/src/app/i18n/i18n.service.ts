@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { computed, inject, Injectable, InjectionToken, signal } from '@angular/core';
 import { commonTranslations } from './common-translations';
 import { hearingTranslations } from '../hearing-types/hearing-translations';
+import { personsTranslations } from '../heard-persons/person-translations';
 
 export type Language = 'fr' | 'de' | 'it';
 export const LANGUAGE_STORAGE_KEY = 'auditions.ui.language';
@@ -15,11 +16,11 @@ export const LANGUAGE_STORAGE = new InjectionToken<Pick<Storage, 'getItem' | 'se
   }
 );
 
-const fr = { ...commonTranslations.fr, ...hearingTranslations.fr };
+const fr = { ...commonTranslations.fr, ...hearingTranslations.fr, ...personsTranslations.fr };
 export type TranslationKey = keyof typeof fr;
 const translations: Record<Language, Record<TranslationKey, string>> = {
-  fr, de: { ...commonTranslations.de, ...hearingTranslations.de },
-  it: { ...commonTranslations.it, ...hearingTranslations.it }
+  fr, de: { ...commonTranslations.de, ...hearingTranslations.de, ...personsTranslations.de },
+  it: { ...commonTranslations.it, ...hearingTranslations.it, ...personsTranslations.it }
 };
 export type TranslationParams = Readonly<Record<string, string | number>>;
 export interface LocalizedMessage {
